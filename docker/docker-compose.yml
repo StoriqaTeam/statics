@@ -1,0 +1,41 @@
+version: '3'
+services:
+  static:
+    image: static
+    build:
+      context: .
+      dockerfile: Dockerfile.static
+    container_name: static
+    working_dir: /app
+    command: ["sh", "-c", "/utils/wait_for_it.sh static-pg:5432 ; diesel migration run ; cargo run"]
+    volumes:
+      - ..:/app
+      - rust_cargo_cache:/usr/local/cargo
+    environment:
+      - DATABASE_URL=postgresql://static:static@static-pg/static
+    expose:
+      - 8000
+    stdin_open: true
+    depends_on:
+      - static-pg
+
+  static-pg:
+    image: postgres:10
+    container_name: static-pg
+    volumes:
+      - stq-static-postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=static
+      - POSTGRES_DB=static
+      - POSTGRES_PASSWORD=static
+    expose:
+      - 5432
+
+volumes:
+  rust_cargo_cache:
+  stq-static-postgres-data:
+
+networks:
+  default:
+    external:
+      name: storiqa
