@@ -13,8 +13,8 @@ services:
       - rust_cargo_cache:/usr/local/cargo
     environment:
       - DATABASE_URL=postgresql://statics:statics@statics-pg/statics
-    expose:
-      - 8000
+    ports:
+      - 8000:8000
     stdin_open: true
     depends_on:
       - statics-pg

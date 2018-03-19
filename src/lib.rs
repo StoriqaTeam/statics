@@ -35,7 +35,7 @@ use std::process;
 
 use futures::{Future, Stream};
 use futures::future;
-use futures_cpupool::CpuPool;
+// use futures_cpupool::CpuPool;
 use hyper::server::Http;
 use tokio_core::reactor::Core;
 
@@ -71,7 +71,7 @@ pub fn start_server(config: Config) {
         .expect("Address must be set in configuration");
 
     // Prepare CPU pool
-    let cpu_pool = CpuPool::new(thread_count);
+    // let cpu_pool = CpuPool::new(thread_count);
 
     let serve = Http::new()
         .serve_addr_handle(&address, &handle, move || {

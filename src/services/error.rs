@@ -1,5 +1,3 @@
-use failure::Error;
-
 use stq_http::errors::ControllerError;
 use stq_http::client::Error as HttpError;
 

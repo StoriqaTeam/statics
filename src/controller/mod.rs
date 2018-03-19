@@ -7,20 +7,15 @@ pub mod routes;
 pub mod utils;
 
 use std::sync::Arc;
-use std::str::FromStr;
 
-use futures::Future;
-use futures::future;
-use futures::IntoFuture;
-use futures_cpupool::CpuPool;
-use hyper::{Delete, Get, Post, Put};
+use future;
+use hyper::{Get};
 use hyper::server::Request;
-use hyper::header::Authorization;
+// use hyper::header::Authorization;
 use stq_http::controller::Controller;
 use stq_http::errors::ControllerError;
 use stq_http::request_util::serialize_future;
 use stq_http::request_util::ControllerFuture;
-use stq_http::request_util::parse_body;
 use stq_http::client::ClientHandle;
 use stq_router::RouteParser;
 
@@ -50,11 +45,11 @@ impl ControllerImpl {
 impl Controller for ControllerImpl {
     /// Handle a request and get future response
     fn call(&self, req: Request) -> ControllerFuture {
-        let headers = req.headers().clone();
-        let auth_header = headers.get::<Authorization<String>>();
-        let user_id = auth_header
-            .map(move |auth| auth.0.clone())
-            .and_then(|id| i32::from_str(&id).ok());
+        // let headers = req.headers().clone();
+        // let auth_header = headers.get::<Authorization<String>>();
+        // let user_id = auth_header
+        //     .map(move |auth| auth.0.clone())
+        //     .and_then(|id| i32::from_str(&id).ok());
 
         let system_service = SystemServiceImpl::new();
 
