@@ -26,7 +26,7 @@ impl S3 {
     }
 
     pub fn upload(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item=String, Error=PutObjectError>> {
-        let mut name_bytes = Vec::with_capacity(HASH_LEN_BYTES as usize);
+        let mut name_bytes = vec![0; HASH_LEN_BYTES as usize];
         let buffer = name_bytes.as_mut_slice();
         rand::thread_rng().fill_bytes(buffer);
         let name = format!("{}.{}", encode(buffer), image_type);

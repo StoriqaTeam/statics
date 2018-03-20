@@ -89,7 +89,7 @@ impl Controller for ControllerImpl {
                         let content_type: String = field.headers.content_type.map(|ct| ct.subtype().as_str().to_string()).unwrap_or("unknown".to_string());
                         let mut data: Vec<u8> = Vec::new();
                         let _ = field.data.read_to_end(&mut data);
-                        let result: ControllerFuture = Box::new(s3.upload(&content_type[..], data).map_err(|e| ControllerError::UnprocessableEntity(e.into())));
+                        let result: ControllerFuture = Box::new(s3.upload(&content_type[..], data).map(|name| format!("{{\"name\": \"{}\"}}", name)).map_err(|e| ControllerError::UnprocessableEntity(e.into())));
                         result
 
                         // unimplemented!()
