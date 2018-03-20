@@ -2,5 +2,5 @@
 secret_key = "jwt secret key"
 
 [S3]
-key = ""
-secret = ""
+key = "AKIAJTQ4IR33MOO6VS2Q"
+secret = "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"
