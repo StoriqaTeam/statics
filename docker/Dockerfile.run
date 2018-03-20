@@ -2,6 +2,7 @@ FROM debian:stable-slim
 
 RUN mkdir -p /app/config
 RUN mkdir -p /usr/local/cargo/bin/
+RUN mkdir -p /app/migrations
 WORKDIR /app
 
 RUN apt-get update
@@ -20,6 +21,7 @@ RUN rm -rf /var/lib/apt/lists/
 COPY statics /app
 COPY diesel /usr/local/cargo/bin/diesel
 COPY config /app/config
+COPY migrations /app/migrations
 
 ENV PATH=$PATH:/usr/local/cargo/bin/
 EXPOSE 8000
