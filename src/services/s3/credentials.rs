@@ -1,0 +1,26 @@
+// // https://rusoto.github.io/rusoto/rusoto_core/trait.ProvideAwsCredentials.html
+
+use rusoto_core::{ProvideAwsCredentials, AwsCredentials, CredentialsError};
+use futures::future::{FutureResult, ok};
+
+struct Credentials {
+    key: String,
+    secret: String,
+}
+
+impl Credentials {
+    fn new(key: String, secret: String) -> Self {
+        Self {
+            key,
+            secret,
+        }
+    }
+}
+
+impl ProvideAwsCredentials for Credentials {
+    type Future = FutureResult<AwsCredentials, CredentialsError>;
+
+    fn credentials(&self) -> Self::Future {
+        ok(AwsCredentials::new(self.key.clone(), self.secret.clone(), None, None))
+    }
+}

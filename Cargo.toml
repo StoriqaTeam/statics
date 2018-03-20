@@ -20,5 +20,7 @@ serde_derive = "1.0"
 jsonwebtoken = "4.0.0"
 hyper-tls="0.1.2"
 failure = "0.1.1"
+rusoto_core = "0.32.0"
+rusoto_s3 = "0.32.0"
 stq_http = { path = "vendor/libstqbackend/http" }
 stq_router = { path = "vendor/libstqbackend/router" }

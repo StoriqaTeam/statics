@@ -25,6 +25,8 @@ extern crate serde_derive;
 extern crate stq_http;
 extern crate stq_router;
 extern crate tokio_core;
+extern crate rusoto_core;
+extern crate rusoto_s3;
 
 pub mod config;
 pub mod controller;
