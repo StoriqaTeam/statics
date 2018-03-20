@@ -22,6 +22,6 @@ COPY diesel /usr/local/cargo/bin/diesel
 COPY config /app/config
 
 ENV PATH=$PATH:/usr/local/cargo/bin/
-EXPOSE 8001
+EXPOSE 8000
 
 ENTRYPOINT ["diesel migration run && /app/statics"]
