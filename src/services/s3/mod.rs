@@ -1,6 +1,10 @@
-// rusoto_core::request::HttpClient
 pub mod credentials;
 
+use rand;
+use rand::Rng;
+use base64::encode;
+
+use futures::future::Future;
 use tokio_core::reactor::Handle;
 use rusoto_core::request::{HttpClient, TlsError};
 use rusoto_core::region::Region;
@@ -11,6 +15,8 @@ pub struct S3 {
     inner: S3Client<credentials::Credentials, HttpClient>,
 }
 
+static HASH_LEN_BYTES: u8 = 8;
+
 impl S3 {
     pub fn new(key: String, secret: String, handle: &Handle) -> Result<Self, TlsError> {
         let credentials = credentials::Credentials::new(key, secret);
@@ -19,8 +25,14 @@ impl S3 {
         Ok(Self { inner: S3Client::new(client, credentials, Region::UsEast1) })
     }
 
-    pub fn upload(&self, bytes: Vec<u8>) -> RusotoFuture<PutObjectOutput, PutObjectError> {
-        self.raw_upload("storiqa-dev".to_string(), "test".to_string(), bytes)
+    pub fn upload(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item=String, Error=PutObjectError>> {
+        let bytes = Vec::with_capacity(HASH_LEN_BYTES as usize);
+        let buffer = &mut bytes[..];
+        rand::thread_rng().fill_bytes(buffer);
+        let name = format!("{}.{}", encode(buffer), image_type);
+        Box::new(
+            self.raw_upload("storiqa-dev".to_string(), name.to_string(), bytes).map(|_| name.to_string())
+        )
     }
 
     pub fn raw_upload(&self, bucket: String, key: String, bytes: Vec<u8>) -> RusotoFuture<PutObjectOutput, PutObjectError> {

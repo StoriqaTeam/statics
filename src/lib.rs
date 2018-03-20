@@ -16,6 +16,9 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate hyper;
 extern crate hyper_tls;
+extern crate multipart;
+extern crate mime;
+extern crate rand;
 extern crate jsonwebtoken;
 #[macro_use]
 extern crate log;
@@ -27,6 +30,7 @@ extern crate stq_router;
 extern crate tokio_core;
 extern crate rusoto_core;
 extern crate rusoto_s3;
+extern crate base64;
 
 pub mod config;
 pub mod controller;
