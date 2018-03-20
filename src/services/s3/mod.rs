@@ -26,12 +26,12 @@ impl S3 {
     }
 
     pub fn upload(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item=String, Error=PutObjectError>> {
-        let bytes = Vec::with_capacity(HASH_LEN_BYTES as usize);
-        let buffer = &mut bytes[..];
+        let mut name_bytes = Vec::with_capacity(HASH_LEN_BYTES as usize);
+        let buffer = name_bytes.as_mut_slice();
         rand::thread_rng().fill_bytes(buffer);
         let name = format!("{}.{}", encode(buffer), image_type);
         Box::new(
-            self.raw_upload("storiqa-dev".to_string(), name.to_string(), bytes).map(|_| name.to_string())
+            self.raw_upload("storiqa-dev".to_string(), name.to_string(), bytes).map(move |_| name.to_string())
         )
     }
 
