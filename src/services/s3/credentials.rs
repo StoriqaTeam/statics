@@ -3,13 +3,13 @@
 use rusoto_core::{ProvideAwsCredentials, AwsCredentials, CredentialsError};
 use futures::future::{FutureResult, ok};
 
-struct Credentials {
+pub struct Credentials {
     key: String,
     secret: String,
 }
 
 impl Credentials {
-    fn new(key: String, secret: String) -> Self {
+    pub fn new(key: String, secret: String) -> Self {
         Self {
             key,
             secret,

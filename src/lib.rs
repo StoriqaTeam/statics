@@ -16,6 +16,9 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate hyper;
 extern crate hyper_tls;
+extern crate multipart;
+extern crate mime;
+extern crate rand;
 extern crate jsonwebtoken;
 #[macro_use]
 extern crate log;
@@ -27,6 +30,7 @@ extern crate stq_router;
 extern crate tokio_core;
 extern crate rusoto_core;
 extern crate rusoto_s3;
+extern crate base64;
 
 pub mod config;
 pub mod controller;
@@ -45,6 +49,7 @@ use stq_http::client::Config as HttpConfig;
 use stq_http::controller::Application;
 
 use config::Config;
+use services::s3::S3;
 
 /// Starts new web service from provided `Config`
 pub fn start_server(config: Config) {
@@ -64,8 +69,9 @@ pub fn start_server(config: Config) {
     let client_stream = client.stream();
     handle.spawn(client_stream.for_each(|_| Ok(())));
 
+    let s3 = Arc::new(S3::new(config.s3.key.clone(), config.s3.secret.clone(), &handle).unwrap());
+
     // Prepare server
-    let thread_count = config.server.thread_count;
     let address = config
         .server
         .address
@@ -80,6 +86,7 @@ pub fn start_server(config: Config) {
             let controller = Box::new(controller::ControllerImpl::new(
                 config.clone(),
                 client_handle.clone(),
+                s3.clone(),
             ));
 
             // Prepare application
@@ -105,6 +112,6 @@ pub fn start_server(config: Config) {
             .map_err(|_| ()),
     );
 
-    info!("Listening on http://{}, threads: {}", address, thread_count);
+    info!("Listening on http://{}", address);
     core.run(future::empty::<(), ()>()).unwrap();
 }
