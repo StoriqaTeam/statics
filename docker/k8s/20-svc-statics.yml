@@ -1,0 +1,17 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: statics
+  labels:
+    stack: storiqa
+spec:
+  selector:
+    stack: storiqa
+    app: statics
+  ports:
+  - name: connect
+    protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: LoadBalancer
+  loadBalancerSourceRanges: [0.0.0.0/0]
