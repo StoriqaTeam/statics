@@ -1,0 +1,42 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: statics
+  labels:
+    stack: storiqa
+    app: statics
+spec:
+  selector:
+    matchLabels:
+      app: statics
+  replicas: 1
+  template:
+    metadata:
+      name: statics
+      labels:
+        app: statics
+        stack: storiqa
+    spec:
+      imagePullSecrets:
+      - name: stq
+      containers:
+      - name: statics
+        image: storiqateam/stq-statics:build_k8s
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+        env:
+        - name: RUN_MODE
+          value: k8s
+        - name: DATABASE_HOST
+          value: statics-pg-postgresql
+        - name: DATABASE_URL
+          value: postgresql://statics:statics@statics-pg-postgresql/statics
+        volumeMounts:
+        - name: development
+          mountPath: /app/config/
+      volumes:
+      - name: development
+        configMap:
+          name: statics
+
