@@ -22,22 +22,25 @@ use stq_router::RouteParser;
 use self::routes::Route;
 use config::Config;
 use services::system::{SystemService, SystemServiceImpl};
+use services::s3::S3;
 
 /// Controller handles route parsing and calling `Service` layer
 pub struct ControllerImpl {
     pub config: Config,
     pub route_parser: Arc<RouteParser<Route>>,
     pub client: ClientHandle,
+    pub s3: Arc<S3>,
 }
 
 impl ControllerImpl {
     /// Create a new controller based on services
-    pub fn new(config: Config, client: ClientHandle) -> Self {
+    pub fn new(config: Config, client: ClientHandle, s3: Arc<S3>) -> Self {
         let route_parser = Arc::new(routes::create_route_parser());
         Self {
             config,
             route_parser,
-            client
+            client,
+            s3
         }
     }
 }

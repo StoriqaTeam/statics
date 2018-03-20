@@ -8,13 +8,20 @@ use config_crate::{Config as RawConfig, ConfigError, Environment, File};
 pub struct Config {
     pub server: Server,
     pub client: Client,
+    pub s3: S3,
 }
 
 /// Common server settings
 #[derive(Debug, Deserialize, Clone)]
 pub struct Server {
     pub address: String,
-    pub thread_count: usize,
+}
+
+/// AWS S3 credentials
+#[derive(Debug, Deserialize, Clone)]
+pub struct S3 {
+    pub key: String,
+    pub secret: String,
 }
 
 /// Http client settings
