@@ -19,7 +19,11 @@ impl S3 {
         Ok(Self { inner: S3Client::new(client, credentials, Region::UsEast1) })
     }
 
-    pub fn upload(&self, bucket: String, key: String, bytes: Vec<u8>) -> RusotoFuture<PutObjectOutput, PutObjectError> {
+    pub fn upload(&self, bytes: Vec<u8>) -> RusotoFuture<PutObjectOutput, PutObjectError> {
+        self.raw_upload("storiqa-dev".to_string(), "test".to_string(), bytes)
+    }
+
+    pub fn raw_upload(&self, bucket: String, key: String, bytes: Vec<u8>) -> RusotoFuture<PutObjectOutput, PutObjectError> {
         let request = PutObjectRequest {
             acl: None,
             body: Some(bytes),

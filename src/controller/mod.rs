@@ -8,10 +8,14 @@ pub mod utils;
 
 use std::sync::Arc;
 
-use future;
-use hyper::{Get};
+use futures::stream::Stream;
+use futures::future;
+use futures::future::{Future};
+use hyper;
+use hyper::{Get, Post};
 use hyper::server::Request;
 // use hyper::header::Authorization;
+
 use stq_http::controller::Controller;
 use stq_http::errors::ControllerError;
 use stq_http::request_util::serialize_future;
@@ -55,13 +59,31 @@ impl Controller for ControllerImpl {
         //     .and_then(|id| i32::from_str(&id).ok());
 
         let system_service = SystemServiceImpl::new();
+        let s3 = self.s3.clone();
 
         match (req.method(), self.route_parser.test(req.path())) {
             // GET /healthcheck
             (&Get, Some(Route::Healthcheck)) => serialize_future(system_service.healthcheck()),
 
+            // POST /images
+            (&Post, Some(Route::Images)) => serialize_future(
+                read_bytes(req.body())
+                    .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
+                    .and_then(move |bytes| {
+                        s3.upload(bytes).map(|_| "test").map_err(|e| ControllerError::UnprocessableEntity(e.into()))
+                    })
+            ),
+
             // Fallback
             _ => Box::new(future::err(ControllerError::NotFound)),
         }
     }
+}
+
+/// Reads body of request and response in Future format
+pub fn read_bytes(body: hyper::Body) -> Box<Future<Item = Vec<u8>, Error = hyper::Error>> {
+    Box::new(body.fold(Vec::new(), |mut acc, chunk| {
+        acc.extend_from_slice(&*chunk);
+        future::ok::<_, hyper::Error>(acc)
+    }))
 }
