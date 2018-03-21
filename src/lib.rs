@@ -17,6 +17,7 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate hyper;
 extern crate hyper_tls;
+extern crate image;
 extern crate jsonwebtoken;
 #[macro_use]
 extern crate log;

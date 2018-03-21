@@ -1,15 +1,37 @@
 pub mod credentials;
 
+use std::fmt::{Display, Formatter, Error};
+use std::collections::HashMap;
 use rand;
 use rand::Rng;
 use base64::encode;
-
 use futures::future::Future;
 use tokio_core::reactor::Handle;
 use rusoto_core::request::{HttpClient, TlsError};
 use rusoto_core::region::Region;
 use rusoto_core::RusotoFuture;
 use rusoto_s3::{PutObjectError, PutObjectOutput, PutObjectRequest, S3 as S3Trait, S3Client};
+use image;
+use image::GenericImage;
+
+#[derive(PartialEq, Eq, Hash, Clone)]
+enum Size {
+    Thumb = 40,
+    Small = 80,
+    Medium = 320,
+    Large = 640,
+}
+
+impl Display for Size {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        match self {
+            Thumb => f.write_str("thumb"),
+            Small => f.write_str("small"),
+            Medium => f.write_str("medium"),
+            Large => f.write_str("large"),
+        }
+    }
+}
 
 pub struct S3 {
     inner: S3Client<credentials::Credentials, HttpClient>,
@@ -38,12 +60,34 @@ impl S3 {
             "storiqa-dev", url_encoded_name
         );
         let content_type = format!("image/{}", image_type);
-        Box::new(self.raw_upload(
-            "storiqa-dev".to_string(),
-            name.to_string(),
-            Some(content_type),
-            bytes,
-        ).map(move |_| url))
+        if let Ok(image_hash) = Self::prepare_image(image_type, &bytes[..]) {
+            Box::new(
+                self.raw_upload("storiqa-dev".to_string(), name.to_string(), Some(content_type), bytes)
+                    .and_then(|_| {
+                        let bytes = image_hash.get(Size::Thumb).unwrap();
+                        self.raw_upload("storiqa-dev".to_string(), format!("{}-{}", Size::Thumb, name), Some(content_type), bytes)
+                    })
+            )
+        } else {
+            Box::new(future::err(PutObjectError::Unknown("failed to set image sizes")))
+        }
+    }
+
+    fn prepare_image(image_type: &str, bytes: &[u8]) -> Result<HashMap<Size, Vec<u8>>, image::ImageError> {
+        let mut hash:  HashMap<Size, Vec<u8>> = HashMap::new();
+        let img = image::load_from_memory_with_format(bytes, image::ImageFormat::PNG)?;
+        let (w, h) = img.dimensions();
+        let smallest_dimension = if w < h { w } else { h };
+        if smallest_dimension == 0 { return Err(image::ImageError::DimensionError); }
+        vec![Size::Thumb, Size::Small, Size::Medium, Size::Large].iter().map(|size| {
+            let size = size.clone();
+            let scale = (size as u32) / smallest_dimension;
+            let size2 = size.clone();
+            let resized_image = img.resize(w * scale, h * scale, image::FilterType::Triangle).raw_pixels();
+            hash.insert(size2, resized_image)
+        });
+
+        Ok(hash)
     }
 
     pub fn raw_upload(
