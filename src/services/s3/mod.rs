@@ -27,11 +27,11 @@ impl S3 {
         })
     }
 
-    pub fn upload(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = String, Error = PutObjectError>> {
+    pub fn upload_image(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = String, Error = PutObjectError>> {
         let mut name_bytes = vec![0; HASH_LEN_BYTES as usize];
         let buffer = name_bytes.as_mut_slice();
         rand::thread_rng().fill_bytes(buffer);
-        let name = format!("{}.{}", encode(buffer), image_type);
+        let name = format!("img-{}.{}", encode(buffer), image_type);
         let url_encoded_name = Self::url_encode_base64(&name);
         let url = format!(
             "https://s3.amazonaws.com/{}/{}",
