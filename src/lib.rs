@@ -35,6 +35,7 @@ extern crate tokio_core;
 pub mod config;
 pub mod controller;
 pub mod services;
+pub mod utils;
 
 use std::sync::Arc;
 use std::process;
