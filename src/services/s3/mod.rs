@@ -30,9 +30,11 @@ impl S3 {
         let buffer = name_bytes.as_mut_slice();
         rand::thread_rng().fill_bytes(buffer);
         let name = format!("{}.{}", encode(buffer), image_type);
+        let url_encoded_name = Self::url_encode_base64(&name);
+        let url = format!("https://s3.amazonaws.com/{}/{}", "storiqa-dev", url_encoded_name);
         let content_type = format!("image/{}", image_type);
         Box::new(
-            self.raw_upload("storiqa-dev".to_string(), name.to_string(), Some(content_type), bytes).map(move |_| name.to_string())
+            self.raw_upload("storiqa-dev".to_string(), name.to_string(), Some(content_type), bytes).map(move |_| url)
         )
     }
 
@@ -66,5 +68,11 @@ impl S3 {
             website_redirect_location: None,
         };
         self.inner.put_object(&request)
+    }
+
+    fn url_encode_base64(s: &str) -> String {
+        let s = s.replace("+", "%2B");
+        let s = s.replace("/", "%2F");
+        s.replace("=", "%3D")
     }
 }
