@@ -30,14 +30,15 @@ impl S3 {
         let buffer = name_bytes.as_mut_slice();
         rand::thread_rng().fill_bytes(buffer);
         let name = format!("{}.{}", encode(buffer), image_type);
+        let content_type = format!("image/{}", image_type);
         Box::new(
-            self.raw_upload("storiqa-dev".to_string(), name.to_string(), bytes).map(move |_| name.to_string())
+            self.raw_upload("storiqa-dev".to_string(), name.to_string(), Some(content_type), bytes).map(move |_| name.to_string())
         )
     }
 
-    pub fn raw_upload(&self, bucket: String, key: String, bytes: Vec<u8>) -> RusotoFuture<PutObjectOutput, PutObjectError> {
+    pub fn raw_upload(&self, bucket: String, key: String, content_type: Option<String>, bytes: Vec<u8>) -> RusotoFuture<PutObjectOutput, PutObjectError> {
         let request = PutObjectRequest {
-            acl: None,
+            acl: Some("public-read".to_string()),
             body: Some(bytes),
             bucket,
             cache_control: None,
@@ -46,7 +47,7 @@ impl S3 {
             content_language: None,
             content_length: None,
             content_md5: None,
-            content_type: None,
+            content_type,
             expires: None,
             grant_full_control: None,
             grant_read: None,
