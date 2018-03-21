@@ -8,6 +8,7 @@
 //! `ServiceError`. That way Controller will only have to deal with ServiceError, but not with `Repo`
 //! or `HttpClient` repo.
 
+extern crate base64;
 extern crate config as config_crate;
 extern crate env_logger;
 #[macro_use]
@@ -16,21 +17,20 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate hyper;
 extern crate hyper_tls;
-extern crate multipart;
-extern crate mime;
-extern crate rand;
 extern crate jsonwebtoken;
 #[macro_use]
 extern crate log;
+extern crate mime;
+extern crate multipart;
+extern crate rand;
+extern crate rusoto_core;
+extern crate rusoto_s3;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate stq_http;
 extern crate stq_router;
 extern crate tokio_core;
-extern crate rusoto_core;
-extern crate rusoto_s3;
-extern crate base64;
 
 pub mod config;
 pub mod controller;

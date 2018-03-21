@@ -1,4 +1,4 @@
-use std::io::{Read, Error as StdError};
+use std::io::{Error as StdError, Read};
 use std::cmp;
 
 use multipart::server::HttpRequest;
@@ -7,7 +7,7 @@ use hyper::header::ContentType;
 use mime;
 
 pub struct Bytes {
-    pub inner: Vec<u8>
+    pub inner: Vec<u8>,
 }
 
 impl Read for Bytes {
@@ -29,9 +29,12 @@ pub struct MultipartRequest {
 
 impl MultipartRequest {
     pub fn new(method: hyper::Method, headers: hyper::Headers, body: Vec<u8>) -> Self {
-        Self { method, headers, body: Bytes { inner: body } }
+        Self {
+            method,
+            headers,
+            body: Bytes { inner: body },
+        }
     }
-
 }
 
 impl HttpRequest for MultipartRequest {
@@ -61,8 +64,7 @@ impl HttpRequest for MultipartRequest {
 
 #[derive(Debug, Fail)]
 pub enum MultipartError {
-    #[fail(display = "Failed to parse multipart")]
-    Parse,
+    #[fail(display = "Failed to parse multipart")] Parse,
 }
 
 #[cfg(test)]
@@ -71,7 +73,9 @@ mod tests {
 
     #[test]
     fn vecex_read() {
-        let mut ex1 = VecEx { inner: vec![1, 2, 3, 4, 5] };
+        let mut ex1 = VecEx {
+            inner: vec![1, 2, 3, 4, 5],
+        };
         let buf = &mut vec![0, 0];
         assert_eq!(ex1.read(buf).unwrap(), 2);
         assert_eq!(buf, &vec![1, 2]);
@@ -88,6 +92,5 @@ mod tests {
         assert_eq!(ex1.read(buf).unwrap(), 0);
         assert_eq!(buf, &vec![5, 4]);
         assert_eq!(ex1.inner, vec![] as Vec<u8>);
-
     }
 }

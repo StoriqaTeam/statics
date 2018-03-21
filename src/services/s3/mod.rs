@@ -9,7 +9,7 @@ use tokio_core::reactor::Handle;
 use rusoto_core::request::{HttpClient, TlsError};
 use rusoto_core::region::Region;
 use rusoto_core::RusotoFuture;
-use rusoto_s3::{S3 as S3Trait, S3Client, PutObjectOutput, PutObjectError, PutObjectRequest};
+use rusoto_s3::{PutObjectError, PutObjectOutput, PutObjectRequest, S3 as S3Trait, S3Client};
 
 pub struct S3 {
     inner: S3Client<credentials::Credentials, HttpClient>,
@@ -22,23 +22,37 @@ impl S3 {
         let credentials = credentials::Credentials::new(key, secret);
         let client = HttpClient::new(handle)?;
         // s3 doesn't require a region
-        Ok(Self { inner: S3Client::new(client, credentials, Region::UsEast1) })
+        Ok(Self {
+            inner: S3Client::new(client, credentials, Region::UsEast1),
+        })
     }
 
-    pub fn upload(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item=String, Error=PutObjectError>> {
+    pub fn upload(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = String, Error = PutObjectError>> {
         let mut name_bytes = vec![0; HASH_LEN_BYTES as usize];
         let buffer = name_bytes.as_mut_slice();
         rand::thread_rng().fill_bytes(buffer);
         let name = format!("{}.{}", encode(buffer), image_type);
         let url_encoded_name = Self::url_encode_base64(&name);
-        let url = format!("https://s3.amazonaws.com/{}/{}", "storiqa-dev", url_encoded_name);
+        let url = format!(
+            "https://s3.amazonaws.com/{}/{}",
+            "storiqa-dev", url_encoded_name
+        );
         let content_type = format!("image/{}", image_type);
-        Box::new(
-            self.raw_upload("storiqa-dev".to_string(), name.to_string(), Some(content_type), bytes).map(move |_| url)
-        )
+        Box::new(self.raw_upload(
+            "storiqa-dev".to_string(),
+            name.to_string(),
+            Some(content_type),
+            bytes,
+        ).map(move |_| url))
     }
 
-    pub fn raw_upload(&self, bucket: String, key: String, content_type: Option<String>, bytes: Vec<u8>) -> RusotoFuture<PutObjectOutput, PutObjectError> {
+    pub fn raw_upload(
+        &self,
+        bucket: String,
+        key: String,
+        content_type: Option<String>,
+        bytes: Vec<u8>,
+    ) -> RusotoFuture<PutObjectOutput, PutObjectError> {
         let request = PutObjectRequest {
             acl: Some("public-read".to_string()),
             body: Some(bytes),
