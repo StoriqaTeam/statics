@@ -143,15 +143,11 @@ impl S3 {
             let size = size.clone();
             let size2 = size.clone();
             let int_size = size as u32;
-            let width = w * int_size / smallest_dimension;
-            let height = h * int_size / smallest_dimension;
-            let resized_image = img.resize(width, height, image::FilterType::Triangle);
+            let width = ((w as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
+            let height = ((h as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
+            let resized_image = img.resize_exact(width, height, image::FilterType::Triangle);
             let mut buffer = Vec::new();
-            // let encoder = image::png::PNGEncoder::new(buffer);
-            // Todo: Handle errors here
-            // let _ = encoder.encode(&resized_image.raw_pixels(), width, height, color);
             let _ = resized_image.save(&mut buffer, image::ImageFormat::PNG);
-            println!("Image size: {}", buffer.len());
             hash.insert(size2, buffer);
         });
 
