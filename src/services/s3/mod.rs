@@ -136,14 +136,23 @@ impl S3 {
         let mut hash:  HashMap<Size, Vec<u8>> = HashMap::new();
         let img = image::load_from_memory_with_format(bytes, image::ImageFormat::PNG)?;
         let (w, h) = img.dimensions();
+        let color = img.color();
         let smallest_dimension = if w < h { w } else { h };
         if smallest_dimension == 0 { return Err(image::ImageError::DimensionError); }
         vec![Size::Thumb, Size::Small, Size::Medium, Size::Large].iter().for_each(|size| {
             let size = size.clone();
             let size2 = size.clone();
-            let scale = (size as u32) / smallest_dimension;
-            let resized_image = img.resize(w * scale, h * scale, image::FilterType::Triangle).raw_pixels();
-            hash.insert(size2, resized_image);
+            let int_size = size as u32;
+            let width = w * int_size / smallest_dimension;
+            let height = h * int_size / smallest_dimension;
+            let resized_image = img.resize(width, height, image::FilterType::Triangle);
+            let mut buffer = Vec::new();
+            // let encoder = image::png::PNGEncoder::new(buffer);
+            // Todo: Handle errors here
+            // let _ = encoder.encode(&resized_image.raw_pixels(), width, height, color);
+            let _ = resized_image.save(&mut buffer, image::ImageFormat::PNG);
+            println!("Image size: {}", buffer.len());
+            hash.insert(size2, buffer);
         });
 
         Ok(hash)
