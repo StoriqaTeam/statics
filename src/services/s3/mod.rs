@@ -134,9 +134,13 @@ impl S3 {
 
     fn prepare_image(image_type: &str, bytes: &[u8]) -> Result<HashMap<Size, Vec<u8>>, image::ImageError> {
         let mut hash:  HashMap<Size, Vec<u8>> = HashMap::new();
-        let img = image::load_from_memory_with_format(bytes, image::ImageFormat::PNG)?;
+        let image_type = match image_type {
+            "png" => image::ImageFormat::PNG,
+            "jpg" | "jpeg" => image::ImageFormat::JPEG,
+            _ => return Err(image::ImageError::UnsupportedError(format!("Unsupported image type: {}", image_type)))
+        };
+        let img = image::load_from_memory_with_format(bytes, image_type)?;
         let (w, h) = img.dimensions();
-        let color = img.color();
         let smallest_dimension = if w < h { w } else { h };
         if smallest_dimension == 0 { return Err(image::ImageError::DimensionError); }
         vec![Size::Thumb, Size::Small, Size::Medium, Size::Large].iter().for_each(|size| {
