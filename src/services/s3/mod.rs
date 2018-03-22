@@ -37,17 +37,19 @@ impl Display for Size {
 #[derive(Clone)]
 pub struct S3 {
     inner: Arc<S3Client<credentials::Credentials, HttpClient>>,
+    bucket: String,
 }
 
 static HASH_LEN_BYTES: u8 = 8;
 
 impl S3 {
-    pub fn new(key: String, secret: String, handle: &Handle) -> Result<Self, TlsError> {
-        let credentials = credentials::Credentials::new(key, secret);
+    pub fn new(key: &str, secret: &str, bucket: &str, handle: &Handle) -> Result<Self, TlsError> {
+        let credentials = credentials::Credentials::new(key.to_string(), secret.to_string());
         let client = HttpClient::new(handle)?;
         // s3 doesn't require a region
         Ok(Self {
             inner: Arc::new(S3Client::new(client, credentials, Region::UsEast1)),
+            bucket: bucket.to_string(),
         })
     }
 
@@ -66,26 +68,25 @@ impl S3 {
         name
     }
 
-    fn upload_image_with_size(&self, size: Option<&Size>, bucket: &str, content_type: &str, image_type: &str, random_hash: &str, bytes: Vec<u8>) -> Box<Future<Item = PutObjectOutput, Error = PutObjectError>> {
+    fn upload_image_with_size(&self, size: Option<&Size>, content_type: &str, image_type: &str, random_hash: &str, bytes: Vec<u8>) -> Box<Future<Item = PutObjectOutput, Error = PutObjectError>> {
         let name = Self::create_aws_name("img", image_type, size, random_hash);
-        self.raw_upload(bucket.to_string(), name, Some(content_type.to_string()), bytes)
+        self.raw_upload(name, Some(content_type.to_string()), bytes)
     }
 
     pub fn upload_image(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = String, Error = PutObjectError>> {
         let content_type = format!("image/{}", image_type);
-        let bucket = "storiqa-dev";
         let random_hash = Self::generate_random_hash();
         let name = Self::create_aws_name("img", image_type, None, &random_hash);
         let url = format!(
             "https://s3.amazonaws.com/{}/{}",
-            bucket, name
+            self.bucket, name
         );
         if let Ok(image_hash) = Self::prepare_image(image_type, &bytes[..]) {
             let mut futures: Vec<_> = image_hash.keys().map(|size| {
                 let bytes = image_hash.get(size).unwrap().to_vec();
-                self.upload_image_with_size(Some(size), bucket, &content_type, image_type, &random_hash, bytes)
+                self.upload_image_with_size(Some(size), &content_type, image_type, &random_hash, bytes)
             }).collect();
-            futures.push(self.upload_image_with_size(None, bucket, &content_type, image_type, &random_hash, bytes));
+            futures.push(self.upload_image_with_size(None, &content_type, image_type, &random_hash, bytes));
             Box::new(future::join_all(futures).map(move |_| url))
         } else {
             Box::new(future::err(PutObjectError::Unknown("failed to set image sizes".to_string()))) as Box<Future<Item = String, Error = PutObjectError>>
@@ -94,7 +95,6 @@ impl S3 {
 
     pub fn raw_upload(
         &self,
-        bucket: String,
         key: String,
         content_type: Option<String>,
         bytes: Vec<u8>,
@@ -102,7 +102,7 @@ impl S3 {
         let request = PutObjectRequest {
             acl: Some("public-read".to_string()),
             body: Some(bytes),
-            bucket,
+            bucket: self.bucket.clone(),
             cache_control: None,
             content_disposition: None,
             content_encoding: None,
