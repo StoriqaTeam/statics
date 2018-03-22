@@ -3,14 +3,10 @@ use stq_http::client::Error as HttpError;
 
 #[derive(Debug, Fail)]
 pub enum ServiceError {
-    #[fail(display = "Not found")]
-    NotFound,
-    #[fail(display = "Http client error: {}", _0)]
-    HttpClient(String),
-    #[fail(display = "Unauthorized")]
-    Unauthorized(String),
-    #[fail(display = "Unknown error: {}", _0)]
-    Unknown(String),
+    #[fail(display = "Not found")] NotFound,
+    #[fail(display = "Http client error: {}", _0)] HttpClient(String),
+    #[fail(display = "Unauthorized")] Unauthorized(String),
+    #[fail(display = "Unknown error: {}", _0)] Unknown(String),
 }
 
 impl From<HttpError> for ServiceError {

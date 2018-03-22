@@ -3,7 +3,7 @@
 use std::env;
 use config_crate::{Config as RawConfig, ConfigError, Environment, File};
 
-/// Basic settings - HTTP binding address and database DSN
+/// Global app config
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     pub server: Server,
@@ -22,6 +22,7 @@ pub struct Server {
 pub struct S3 {
     pub key: String,
     pub secret: String,
+    pub bucket: String,
 }
 
 /// Http client settings

@@ -12,11 +12,11 @@ use std::io::Read;
 
 use futures::stream::Stream;
 use futures::future;
-use futures::future::{Future};
+use futures::future::Future;
 use hyper;
 use hyper::{Get, Post};
 use hyper::server::Request;
-use multipart::server::{Multipart, ReadEntryResult};
+use multipart::server::Multipart;
 // use hyper::header::Authorization;
 
 use stq_http::controller::Controller;
@@ -47,7 +47,7 @@ impl ControllerImpl {
             config,
             route_parser,
             client,
-            s3
+            s3,
         }
     }
 }
@@ -74,45 +74,42 @@ impl Controller for ControllerImpl {
                 let headers = req.headers().clone();
 
                 Box::new(
-                read_bytes(req.body())
-                    .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
-                    .and_then(move |bytes| {
-                        let multipart_wrapper = multipart_utils::MultipartRequest::new(method, headers, bytes);
-                        let multipart_entity = match Multipart::from_request(multipart_wrapper) {
-                            Err(e) => return Box::new(future::err::<String, ControllerError>(ControllerError::UnprocessableEntity(multipart_utils::MultipartError::Parse.into()))) as ControllerFuture,
-                            Ok(mp) => mp,
-                        };
-                        let mut field = match multipart_entity.into_entry().into_result() {
-                            Ok(Some(field)) => field,
-                            _ => return Box::new(future::err::<String, ControllerError>(ControllerError::UnprocessableEntity(multipart_utils::MultipartError::Parse.into()))) as ControllerFuture,
-                        };
-                        let content_type: String = field.headers.content_type.map(|ct| ct.subtype().as_str().to_string()).unwrap_or("unknown".to_string());
-                        let mut data: Vec<u8> = Vec::new();
-                        let _ = field.data.read_to_end(&mut data);
-                        let result: ControllerFuture = Box::new(s3.upload(&content_type[..], data).map(|name| format!("{{\"name\": \"{}\"}}", name)).map_err(|e| ControllerError::UnprocessableEntity(e.into())));
-                        result
-
-                        // unimplemented!()
-                        // let multipart_wrapper = multipart_utils::MultipartRequest::new(method, headers, bytes);
-                        // let mut multipart_data = Multipart::from_request(multipart_wrapper)
-                        //     .map_err(|_| ControllerError::UnprocessableEntity(multipart_utils::MultipartError::Parse.into()))
-                        //     .and_then({|data| data.read_entry()
-                        //         .map_err(|_| ControllerError::UnprocessableEntity(multipart_utils::MultipartError::Parse.into()))
-                        //         .and_then(|field| field.ok_or(ControllerError::UnprocessableEntity(multipart_utils::MultipartError::Parse.into())))
-                        //     });
-                        // let result: Box<Future<Item=String, Error=ControllerError>> = match multipart_data.as_mut() {
-                        //     Ok(field) => {
-                        //         let content_type: String = field.headers.content_type.map(|ct| ct.subtype().as_str().to_string()).unwrap_or("unknown".to_string());
-                        //         let mut data: Vec<u8> = Vec::new();
-                        //         field.data.read_to_end(&mut data);
-                        //         Box::new(s3.upload(&content_type[..], data).map_err(|e| ControllerError::UnprocessableEntity(e.into())))
-                        //     },
-                        //     Err(e) => Box::new(future::err::<String, ControllerError>(*e)),
-                        // };
-                        // result
-                    })
+                    read_bytes(req.body())
+                        .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
+                        .and_then(move |bytes| {
+                            let multipart_wrapper = multipart_utils::MultipartRequest::new(method, headers, bytes);
+                            let multipart_entity = match Multipart::from_request(multipart_wrapper) {
+                                Err(_) => {
+                                    return Box::new(future::err::<String, ControllerError>(
+                                        ControllerError::UnprocessableEntity(multipart_utils::MultipartError::Parse.into()),
+                                    )) as ControllerFuture
+                                }
+                                Ok(mp) => mp,
+                            };
+                            let mut field = match multipart_entity.into_entry().into_result() {
+                                Ok(Some(field)) => field,
+                                _ => {
+                                    return Box::new(future::err::<String, ControllerError>(
+                                        ControllerError::UnprocessableEntity(multipart_utils::MultipartError::Parse.into()),
+                                    )) as ControllerFuture
+                                }
+                            };
+                            let content_type: String = field
+                                .headers
+                                .content_type
+                                .map(|ct| ct.subtype().as_str().to_string())
+                                .unwrap_or("unknown".to_string());
+                            let mut data: Vec<u8> = Vec::new();
+                            let _ = field.data.read_to_end(&mut data);
+                            let result: ControllerFuture = Box::new(
+                                s3.upload_image(&content_type[..], data)
+                                    .map(|name| format!("{{\"url\": \"{}\"}}", name))
+                                    .map_err(|e| ControllerError::UnprocessableEntity(e.into())),
+                            );
+                            result
+                        }),
                 )
-            },
+            }
 
             // Fallback
             _ => Box::new(future::err(ControllerError::NotFound)),

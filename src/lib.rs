@@ -8,6 +8,7 @@
 //! `ServiceError`. That way Controller will only have to deal with ServiceError, but not with `Repo`
 //! or `HttpClient` repo.
 
+extern crate base64;
 extern crate config as config_crate;
 extern crate env_logger;
 #[macro_use]
@@ -16,25 +17,26 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate hyper;
 extern crate hyper_tls;
-extern crate multipart;
-extern crate mime;
-extern crate rand;
+extern crate image;
 extern crate jsonwebtoken;
 #[macro_use]
 extern crate log;
+extern crate mime;
+extern crate multipart;
+extern crate rand;
+extern crate rusoto_core;
+extern crate rusoto_s3;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate stq_http;
 extern crate stq_router;
 extern crate tokio_core;
-extern crate rusoto_core;
-extern crate rusoto_s3;
-extern crate base64;
 
 pub mod config;
 pub mod controller;
 pub mod services;
+pub mod utils;
 
 use std::sync::Arc;
 use std::process;
@@ -69,7 +71,7 @@ pub fn start_server(config: Config) {
     let client_stream = client.stream();
     handle.spawn(client_stream.for_each(|_| Ok(())));
 
-    let s3 = Arc::new(S3::new(config.s3.key.clone(), config.s3.secret.clone(), &handle).unwrap());
+    let s3 = Arc::new(S3::new(&config.s3.key, &config.s3.secret, &config.s3.bucket, &handle).unwrap());
 
     // Prepare server
     let address = config
