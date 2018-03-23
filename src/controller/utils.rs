@@ -1,3 +1,5 @@
+//! Http utils for the app
+
 use std::collections::HashMap;
 use std::iter::FromIterator;
 

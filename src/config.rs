@@ -9,6 +9,7 @@ pub struct Config {
     pub server: Server,
     pub client: Client,
     pub s3: S3,
+    pub jwt: JWT,
 }
 
 /// Common server settings
@@ -25,6 +26,13 @@ pub struct S3 {
     pub bucket: String,
 }
 
+/// JWT data
+#[derive(Debug, Deserialize, Clone)]
+pub struct JWT {
+    pub secret_key: String,
+}
+
+
 /// Http client settings
 #[derive(Debug, Deserialize, Clone)]
 pub struct Client {
@@ -33,7 +41,8 @@ pub struct Client {
     pub dns_worker_thread_count: usize,
 }
 
-/// Creates new app config struct
+/// Creates new app config struct. The order is take `base.toml`, then override with
+/// `development/test/production.toml`, then override with `STQ_STATICS_` env variables.
 /// #Examples
 /// ```
 /// use statics_lib::config::*;

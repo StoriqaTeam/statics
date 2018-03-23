@@ -1,7 +1,10 @@
+//! Error for S3 service
+
 use futures::future::err;
 use futures::Future;
 use rusoto_s3::PutObjectError;
 
+/// Error for S3 service
 #[derive(Debug, Fail)]
 pub enum S3Error {
     #[fail(display = "Access Error: {}", _0)] Access(String),

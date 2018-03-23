@@ -1,12 +1,12 @@
-//! Users is a microservice responsible for authentication and managing user profiles.
+//! Statics is a microservice responsible for uploading different static assets like images, videos, etc.
 //! The layered structure of the app is
 //!
-//! `Application -> Controller -> Service -> Repo + HttpClient`
+//! `Application -> Controller -> Service -> HttpClient`
 //!
-//! Each layer can only face exceptions in its base layers and can only expose its own errors.
-//! E.g. `Service` layer will only deal with `Repo` and `HttpClient` errors and will only return
-//! `ServiceError`. That way Controller will only have to deal with ServiceError, but not with `Repo`
-//! or `HttpClient` repo.
+//! Currently available routes:
+//!
+//! - `GET /healthcheck` - returns `"ok"` if the server is live
+//! - `POST /images` - accepts multipart HTTP requests with `png` / `jpeg` images
 
 extern crate base64;
 extern crate config as config_crate;
@@ -36,7 +36,6 @@ extern crate tokio_core;
 pub mod config;
 pub mod controller;
 pub mod services;
-pub mod utils;
 
 use std::sync::Arc;
 use std::process;

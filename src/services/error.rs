@@ -1,6 +1,9 @@
+//! Error for service module
+
 use stq_http::errors::ControllerError;
 use stq_http::client::Error as HttpError;
 
+/// Error for service module
 #[derive(Debug, Fail)]
 pub enum ServiceError {
     #[fail(display = "Not found")] NotFound,

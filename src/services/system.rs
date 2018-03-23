@@ -1,3 +1,6 @@
+//!
+
+System service, responsible for common endpoints like healthcheck
 use futures::future;
 
 use super::types::ServiceFuture;
