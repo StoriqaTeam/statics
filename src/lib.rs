@@ -71,7 +71,14 @@ pub fn start_server(config: Config) {
     let client_stream = client.stream();
     handle.spawn(client_stream.for_each(|_| Ok(())));
 
-    let s3 = Arc::new(S3::new(&config.s3.key, &config.s3.secret, &config.s3.bucket, &handle).unwrap());
+    let s3 = Arc::new(
+        S3::new(
+            &config.s3.key,
+            &config.s3.secret,
+            &config.s3.bucket,
+            &handle,
+        ).unwrap(),
+    );
 
     // Prepare server
     let address = config
