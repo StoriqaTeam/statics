@@ -1,5 +1,12 @@
-//! Users is a microservice responsible for authentication and managing user profiles.
-//! This create is for running the service from `users_lib`. See `users_lib` for details.
+//! Statics is a microservice responsible for uploading different static assets like images, videos, etc.
+//! The layered structure of the app is
+//!
+//! `Application -> Controller -> Service -> HttpClient`
+//!
+//! Currently available routes:
+//!
+//! - `GET /healthcheck` - returns `"ok"` if the server is live
+//! - `POST /images` - accepts multipart HTTP requests with `png` / `jpeg` images
 
 extern crate statics_lib;
 

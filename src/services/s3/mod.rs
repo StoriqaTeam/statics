@@ -1,3 +1,5 @@
+//! S3 service handles uploading static assets like images and videos to s3
+
 pub mod credentials;
 pub mod error;
 
@@ -19,6 +21,7 @@ use image::DynamicImage;
 
 use self::error::S3Error;
 
+/// Image sizes that will go to s3 for traffic optimization
 #[derive(PartialEq, Eq, Hash, Clone)]
 enum Size {
     Thumb = 40,
@@ -38,6 +41,10 @@ impl Display for Size {
     }
 }
 
+/// Lenght of the random hash in s3 filename in bytes
+static HASH_LEN_BYTES: u8 = 8;
+
+/// S3 service
 #[derive(Clone)]
 pub struct S3 {
     inner: Arc<S3Client<credentials::Credentials, HttpClient>>,
@@ -45,9 +52,13 @@ pub struct S3 {
     cpu_pool: Arc<CpuPool>,
 }
 
-static HASH_LEN_BYTES: u8 = 8;
-
 impl S3 {
+    /// Create s3 service
+    ///
+    /// * `key` - AWS key for s3 (from AWS console).
+    /// * `secret` - AWS secret for s3 (from AWS console).
+    /// * `bucket` - AWS s3 bucket name
+    /// * `handle` - tokio event loop handle (needed for s3 http client)
     pub fn new(key: &str, secret: &str, bucket: &str, handle: &Handle) -> Result<Self, TlsError> {
         let credentials = credentials::Credentials::new(key.to_string(), secret.to_string());
         let client = HttpClient::new(handle)?;
@@ -59,6 +70,11 @@ impl S3 {
         })
     }
 
+    /// Uploads image along with all resized variants in `Size` enum. If original image size is less
+    /// than e.g. Size::Large, then original image is uploaded as large.
+    ///
+    /// * `image_type` - either "png", "jpg" or "jpeg" - these are types that are supported
+    /// * `bytes` - bytes repesenting compessed image (compessed with `image_type` codec)
     pub fn upload_image(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = String, Error = S3Error>> {
         let content_type = format!("image/{}", image_type);
         let random_hash = Self::generate_random_hash();
@@ -87,6 +103,14 @@ impl S3 {
         Box::new(future::join_all(futures).map(move |_| url))
     }
 
+    /// Spawns resizing and image on a thread from a thread pool and then uploads
+    /// result to S3
+    ///
+    /// * `size` - image size for resizing
+    /// * `content_type` - http content type (needed for s3 to serve correct content)
+    /// * `image_type` - either "png", "jpg" or "jpeg" - these are types that are supported
+    /// * `random_hash` - technically a filename for image
+    /// * `bytes` - bytes repesenting compessed image (compessed with `image_type` codec)
     fn resize_and_upload_image_async(
         &self,
         size: &Size,
@@ -110,6 +134,7 @@ impl S3 {
         )
     }
 
+    /// Spawns resizing and image on a thread from a thread pool
     fn resize_image_async(
         &self,
         size: &Size,
@@ -137,7 +162,8 @@ impl S3 {
         )
     }
 
-    pub fn raw_upload(
+    /// Uploads bytes to s3 with filename `key` and content-type
+    fn raw_upload(
         &self,
         key: String,
         content_type: Option<String>,
@@ -174,13 +200,6 @@ impl S3 {
         Box::new(self.inner.put_object(&request).map(|_| ()).map_err(|e| e.into()))
     }
 
-    fn generate_random_hash() -> String {
-        let mut name_bytes = vec![0; HASH_LEN_BYTES as usize];
-        let buffer = name_bytes.as_mut_slice();
-        rand::thread_rng().fill_bytes(buffer);
-        Self::encode_for_aws(&encode(buffer))
-    }
-
     fn create_aws_name(prefix: &str, image_type: &str, size: Option<&Size>, random_hash: &str) -> String {
         let name = match size {
             Some(size) => format!("{}-{}-{}.{}", prefix, random_hash, size, image_type),
@@ -189,6 +208,14 @@ impl S3 {
         name
     }
 
+    fn generate_random_hash() -> String {
+        let mut name_bytes = vec![0; HASH_LEN_BYTES as usize];
+        let buffer = name_bytes.as_mut_slice();
+        rand::thread_rng().fill_bytes(buffer);
+        Self::encode_for_aws(&encode(buffer))
+    }
+
+    /// Three symbols +, /, = are not aws and url-friendly, just replace them
     fn encode_for_aws(s: &str) -> String {
         let s = s.replace("+", "A");
         let s = s.replace("/", "B");

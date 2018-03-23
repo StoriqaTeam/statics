@@ -1,3 +1,5 @@
+//! Type aliases for service module
+
 use futures::future::Future;
 
 use super::error::ServiceError;

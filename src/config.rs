@@ -33,7 +33,8 @@ pub struct Client {
     pub dns_worker_thread_count: usize,
 }
 
-/// Creates new app config struct
+/// Creates new app config struct. The order is take `base.toml`, then override with
+/// `development/test/production.toml`, then override with `STQ_STATICS_` env variables.
 /// #Examples
 /// ```
 /// use statics_lib::config::*;

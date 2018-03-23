@@ -1,9 +1,17 @@
+//! This module implements HttpRequest trait (part of `multipart` crate)
+//! for hyper::Request. It might come as a surprise that we need to do this,
+//! but at this point of time `multipart` crate was designed for `hyper` <= 0.10
+//! which is synchronous and cannot be used with async hyper (> 0.11). There is
+//! an async implementation https://github.com/abonander/multipart-async, but
+//! it's in pre-alpha version.
+
 use multipart::server::HttpRequest;
 use hyper;
 use hyper::header::ContentType;
 use mime;
 use std::io::Cursor;
 
+/// Structure that complies with `multipart` crate HttpRequest
 pub struct MultipartRequest {
     body: Cursor<Vec<u8>>,
     headers: hyper::Headers,
@@ -47,5 +55,5 @@ impl HttpRequest for MultipartRequest {
 
 #[derive(Debug, Fail)]
 pub enum MultipartError {
-    #[fail(display = "Failed to parse multipart")] Parse,
+    #[fail(display = "Failed to parse multipart body")] Parse,
 }
