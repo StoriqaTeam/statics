@@ -2,10 +2,10 @@ use multipart::server::HttpRequest;
 use hyper;
 use hyper::header::ContentType;
 use mime;
-use utils::Bytes;
+use std::io::Cursor;
 
 pub struct MultipartRequest {
-    body: Bytes,
+    body: Cursor<Vec<u8>>,
     headers: hyper::Headers,
     method: hyper::Method,
 }
@@ -15,13 +15,13 @@ impl MultipartRequest {
         Self {
             method,
             headers,
-            body: Bytes::new(body),
+            body: Cursor::new(body),
         }
     }
 }
 
 impl HttpRequest for MultipartRequest {
-    type Body = Bytes;
+    type Body = Cursor<Vec<u8>>;
     fn multipart_boundary(&self) -> Option<&str> {
         if self.method != hyper::Method::Post {
             return None;
