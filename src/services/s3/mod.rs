@@ -16,7 +16,8 @@ use rusoto_s3::{PutObjectError, PutObjectOutput, PutObjectRequest, S3 as S3Trait
 use image;
 use image::GenericImage;
 use futures_cpupool::CpuPool;
-use futures::channel::oneshot;
+use futures::sync::oneshot;
+use image::DynamicImage;
 
 use self::error::S3Error;
 
@@ -60,36 +61,12 @@ impl S3 {
         })
     }
 
-    fn resize_and_upload_image_async(
-        &self,
-        size: &Size,
-        content_type: &str,
-        image_type: &str,
-        random_hash: &str,
-        raw_pixels: Vec<u8>,
-    ) -> Box<Future<Item = (), Error = S3Error>> {
-        let self_clone = self.clone();
-        let size = size.clone();
-        let content_type = content_type.clone();
-        let image_type = image_type.clone();
-        let random_hash = random_hash.clone();
-        Box::new(
-            self.cpu_pool.spawn_fn(move || {
-                self_clone.resize_and_upload_image(&size, &content_type, &image_type, &random_hash, raw_pixels)
-            })
-        )
-    }
-
-    fn resize_and_upload_image(
-        &self,
-        size: &Size,
-        content_type: &str,
-        image_type: &str,
-        random_hash: &str,
-        raw_pixels: Vec<u8>,
-    ) -> Box<Future<Item = (), Error = S3Error>> {
-        let name = Self::create_aws_name("img", image_type, Some(size), random_hash);
-        let image_format = match image_type {
+    pub fn upload_image(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = String, Error = S3Error>> {
+        let content_type = format!("image/{}", image_type);
+        let random_hash = Self::generate_random_hash();
+        let name = Self::create_aws_name("img", image_type, None, &random_hash);
+        let url = format!("https://s3.amazonaws.com/{}/{}", self.bucket, name);
+        let image_format = match &image_type[..] {
             "png" => image::ImageFormat::PNG,
             "jpg" | "jpeg" => image::ImageFormat::JPEG,
             _ => {
@@ -99,44 +76,71 @@ impl S3 {
                 )).into()
             }
         };
-        let img = match image::load_from_memory_with_format(&raw_pixels, image_format) {
+        let image = match image::load_from_memory_with_format(&bytes, image_format) {
             Ok(data) => data,
             Err(e) => return S3Error::Image(format!("Error paring image format: {}", e)).into()
         };
-        let (w, h) = img.dimensions();
-        let smallest_dimension = if w < h { w } else { h };
-        if smallest_dimension == 0 {
-            return S3Error::Image("Uploaded image size is zero".to_string()).into();
-        }
-        let int_size = *size as u32;
-        let width = ((w as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
-        let height = ((h as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
-        let resized_image = img.resize_exact(width, height, image::FilterType::Triangle);
-        let mut buffer = Vec::new();
-        let _ = resized_image.save(&mut buffer, image::ImageFormat::PNG);
-        self.raw_upload(name, Some(content_type.to_string()), buffer)
+
+        let mut futures: Vec<_> = vec![Size::Thumb, Size::Small, Size::Medium, Size::Large].iter().map(|size| {
+            let img = image.clone();
+            self.resize_and_upload_image_async(size, &content_type, image_type, &random_hash, img)
+        }).collect();
+        futures.push(self.raw_upload(name, Some(content_type), bytes));
+        Box::new(future::join_all(futures).map(move |_| url))
     }
 
-    pub fn upload_image(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = String, Error = PutObjectError>> {
-        let content_type = format!("image/{}", image_type);
-        let random_hash = Self::generate_random_hash();
-        let name = Self::create_aws_name("img", image_type, None, &random_hash);
-        let url = format!("https://s3.amazonaws.com/{}/{}", self.bucket, name);
-        if let Ok(image_hash) = Self::prepare_image(image_type, &bytes[..]) {
-            let mut futures: Vec<_> = image_hash
-                .keys()
-                .map(|size| {
-                    let bytes = image_hash.get(size).unwrap().to_vec();
-                    self.upload_image_with_size(Some(size), &content_type, image_type, &random_hash, bytes)
+    fn resize_and_upload_image_async(
+        &self,
+        size: &Size,
+        content_type: &str,
+        image_type: &str,
+        random_hash: &str,
+        image: DynamicImage,
+    ) -> Box<Future<Item = (), Error = S3Error>> {
+        let self_clone = self.clone();
+        let size_clone = size.clone();
+        let content_type_clone = content_type.to_string();
+        let image_type_clone = image_type.to_string();
+        let random_hash_clone = random_hash.to_string();
+
+        Box::new(
+            self.resize_image_async(size, content_type, image_type, random_hash, image)
+                .and_then(move |bytes| {
+                    let name = Self::create_aws_name("img", &image_type_clone, Some(&size_clone), &random_hash_clone);
+                    self_clone.raw_upload(name, Some(content_type_clone), bytes)
                 })
-                .collect();
-            futures.push(self.upload_image_with_size(None, &content_type, image_type, &random_hash, bytes));
-            Box::new(future::join_all(futures).map(move |_| url))
-        } else {
-            Box::new(future::err(PutObjectError::Unknown(
-                "failed to set image sizes".to_string(),
-            ))) as Box<Future<Item = String, Error = PutObjectError>>
-        }
+        )
+    }
+
+    fn resize_image_async(
+        &self,
+        size: &Size,
+        content_type: &str,
+        image_type: &str,
+        random_hash: &str,
+        image: DynamicImage,
+    ) -> Box<Future<Item = Vec<u8>, Error = S3Error>> {
+        let size = size.clone();
+        let content_type = content_type.to_string();
+        let image_type = image_type.to_string();
+        let random_hash = random_hash.to_string();
+        Box::new(
+            self.cpu_pool.spawn_fn(move || -> Result<Vec<u8>, S3Error> {
+                let name = Self::create_aws_name("img", &image_type, Some(&size), &random_hash);
+                let (w, h) = image.dimensions();
+                let smallest_dimension = if w < h { w } else { h };
+                if smallest_dimension == 0 {
+                    return Err(S3Error::Image("Uploaded image size is zero".to_string()));
+                }
+                let int_size = size.clone() as u32;
+                let width = ((w as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
+                let height = ((h as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
+                let resized_image = image.resize_exact(width, height, image::FilterType::Triangle);
+                let mut buffer = Vec::new();
+                let _ = resized_image.save(&mut buffer, image::ImageFormat::PNG);
+                Ok(buffer)
+            })
+        )
     }
 
     pub fn raw_upload(
@@ -173,42 +177,7 @@ impl S3 {
             tagging: None,
             website_redirect_location: None,
         };
-        Box::new(self.inner.put_object(&request).map(|| ()).map_err(|e| e.into()))
-    }
-
-    fn prepare_image(image_type: &str, bytes: &[u8]) -> Result<HashMap<Size, Vec<u8>>, image::ImageError> {
-        let mut hash: HashMap<Size, Vec<u8>> = HashMap::new();
-        let image_type = match image_type {
-            "png" => image::ImageFormat::PNG,
-            "jpg" | "jpeg" => image::ImageFormat::JPEG,
-            _ => {
-                return Err(image::ImageError::UnsupportedError(format!(
-                    "Unsupported image type: {}",
-                    image_type
-                )))
-            }
-        };
-        let img = image::load_from_memory_with_format(bytes, image_type)?;
-        let (w, h) = img.dimensions();
-        let smallest_dimension = if w < h { w } else { h };
-        if smallest_dimension == 0 {
-            return Err(image::ImageError::DimensionError);
-        }
-        vec![Size::Thumb, Size::Small, Size::Medium, Size::Large]
-            .iter()
-            .for_each(|size| {
-                let size = size.clone();
-                let size2 = size.clone();
-                let int_size = size as u32;
-                let width = ((w as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
-                let height = ((h as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
-                let resized_image = img.resize_exact(width, height, image::FilterType::Triangle);
-                let mut buffer = Vec::new();
-                let _ = resized_image.save(&mut buffer, image::ImageFormat::PNG);
-                hash.insert(size2, buffer);
-            });
-
-        Ok(hash)
+        Box::new(self.inner.put_object(&request).map(|_| ()).map_err(|e| e.into()))
     }
 
     fn generate_random_hash() -> String {
