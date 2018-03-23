@@ -1,7 +1,7 @@
 pub mod credentials;
 
 use std::sync::Arc;
-use std::fmt::{Display, Formatter, Error};
+use std::fmt::{Display, Error, Formatter};
 use std::collections::HashMap;
 use rand;
 use rand::Rng;
@@ -68,7 +68,14 @@ impl S3 {
         name
     }
 
-    fn upload_image_with_size(&self, size: Option<&Size>, content_type: &str, image_type: &str, random_hash: &str, bytes: Vec<u8>) -> Box<Future<Item = PutObjectOutput, Error = PutObjectError>> {
+    fn upload_image_with_size(
+        &self,
+        size: Option<&Size>,
+        content_type: &str,
+        image_type: &str,
+        random_hash: &str,
+        bytes: Vec<u8>,
+    ) -> Box<Future<Item = PutObjectOutput, Error = PutObjectError>> {
         let name = Self::create_aws_name("img", image_type, size, random_hash);
         self.raw_upload(name, Some(content_type.to_string()), bytes)
     }
@@ -77,19 +84,21 @@ impl S3 {
         let content_type = format!("image/{}", image_type);
         let random_hash = Self::generate_random_hash();
         let name = Self::create_aws_name("img", image_type, None, &random_hash);
-        let url = format!(
-            "https://s3.amazonaws.com/{}/{}",
-            self.bucket, name
-        );
+        let url = format!("https://s3.amazonaws.com/{}/{}", self.bucket, name);
         if let Ok(image_hash) = Self::prepare_image(image_type, &bytes[..]) {
-            let mut futures: Vec<_> = image_hash.keys().map(|size| {
-                let bytes = image_hash.get(size).unwrap().to_vec();
-                self.upload_image_with_size(Some(size), &content_type, image_type, &random_hash, bytes)
-            }).collect();
+            let mut futures: Vec<_> = image_hash
+                .keys()
+                .map(|size| {
+                    let bytes = image_hash.get(size).unwrap().to_vec();
+                    self.upload_image_with_size(Some(size), &content_type, image_type, &random_hash, bytes)
+                })
+                .collect();
             futures.push(self.upload_image_with_size(None, &content_type, image_type, &random_hash, bytes));
             Box::new(future::join_all(futures).map(move |_| url))
         } else {
-            Box::new(future::err(PutObjectError::Unknown("failed to set image sizes".to_string()))) as Box<Future<Item = String, Error = PutObjectError>>
+            Box::new(future::err(PutObjectError::Unknown(
+                "failed to set image sizes".to_string(),
+            ))) as Box<Future<Item = String, Error = PutObjectError>>
         }
     }
 
@@ -127,33 +136,40 @@ impl S3 {
             tagging: None,
             website_redirect_location: None,
         };
-        Box::new(
-            self.inner.put_object(&request)
-        )
+        Box::new(self.inner.put_object(&request))
     }
 
     fn prepare_image(image_type: &str, bytes: &[u8]) -> Result<HashMap<Size, Vec<u8>>, image::ImageError> {
-        let mut hash:  HashMap<Size, Vec<u8>> = HashMap::new();
+        let mut hash: HashMap<Size, Vec<u8>> = HashMap::new();
         let image_type = match image_type {
             "png" => image::ImageFormat::PNG,
             "jpg" | "jpeg" => image::ImageFormat::JPEG,
-            _ => return Err(image::ImageError::UnsupportedError(format!("Unsupported image type: {}", image_type)))
+            _ => {
+                return Err(image::ImageError::UnsupportedError(format!(
+                    "Unsupported image type: {}",
+                    image_type
+                )))
+            }
         };
         let img = image::load_from_memory_with_format(bytes, image_type)?;
         let (w, h) = img.dimensions();
         let smallest_dimension = if w < h { w } else { h };
-        if smallest_dimension == 0 { return Err(image::ImageError::DimensionError); }
-        vec![Size::Thumb, Size::Small, Size::Medium, Size::Large].iter().for_each(|size| {
-            let size = size.clone();
-            let size2 = size.clone();
-            let int_size = size as u32;
-            let width = ((w as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
-            let height = ((h as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
-            let resized_image = img.resize_exact(width, height, image::FilterType::Triangle);
-            let mut buffer = Vec::new();
-            let _ = resized_image.save(&mut buffer, image::ImageFormat::PNG);
-            hash.insert(size2, buffer);
-        });
+        if smallest_dimension == 0 {
+            return Err(image::ImageError::DimensionError);
+        }
+        vec![Size::Thumb, Size::Small, Size::Medium, Size::Large]
+            .iter()
+            .for_each(|size| {
+                let size = size.clone();
+                let size2 = size.clone();
+                let int_size = size as u32;
+                let width = ((w as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
+                let height = ((h as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
+                let resized_image = img.resize_exact(width, height, image::FilterType::Triangle);
+                let mut buffer = Vec::new();
+                let _ = resized_image.save(&mut buffer, image::ImageFormat::PNG);
+                hash.insert(size2, buffer);
+            });
 
         Ok(hash)
     }
