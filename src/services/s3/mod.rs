@@ -3,7 +3,6 @@ pub mod error;
 
 use std::sync::Arc;
 use std::fmt::{Display, Error, Formatter};
-use std::collections::HashMap;
 use rand;
 use rand::Rng;
 use base64::encode;
@@ -12,11 +11,10 @@ use futures::future::Future;
 use tokio_core::reactor::Handle;
 use rusoto_core::request::{HttpClient, TlsError};
 use rusoto_core::region::Region;
-use rusoto_s3::{PutObjectError, PutObjectOutput, PutObjectRequest, S3 as S3Trait, S3Client};
+use rusoto_s3::{PutObjectRequest, S3 as S3Trait, S3Client};
 use image;
 use image::GenericImage;
 use futures_cpupool::CpuPool;
-use futures::sync::oneshot;
 use image::DynamicImage;
 
 use self::error::S3Error;
@@ -104,7 +102,7 @@ impl S3 {
         let random_hash_clone = random_hash.to_string();
 
         Box::new(
-            self.resize_image_async(size, content_type, image_type, random_hash, image)
+            self.resize_image_async(size, image)
                 .and_then(move |bytes| {
                     let name = Self::create_aws_name("img", &image_type_clone, Some(&size_clone), &random_hash_clone);
                     self_clone.raw_upload(name, Some(content_type_clone), bytes)
@@ -115,18 +113,11 @@ impl S3 {
     fn resize_image_async(
         &self,
         size: &Size,
-        content_type: &str,
-        image_type: &str,
-        random_hash: &str,
         image: DynamicImage,
     ) -> Box<Future<Item = Vec<u8>, Error = S3Error>> {
         let size = size.clone();
-        let content_type = content_type.to_string();
-        let image_type = image_type.to_string();
-        let random_hash = random_hash.to_string();
         Box::new(
             self.cpu_pool.spawn_fn(move || -> Result<Vec<u8>, S3Error> {
-                let name = Self::create_aws_name("img", &image_type, Some(&size), &random_hash);
                 let (w, h) = image.dimensions();
                 let smallest_dimension = if w < h { w } else { h };
                 if smallest_dimension == 0 {
