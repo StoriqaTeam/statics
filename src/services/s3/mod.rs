@@ -1,4 +1,5 @@
 pub mod credentials;
+pub mod error;
 
 use std::sync::Arc;
 use std::fmt::{Display, Error, Formatter};
@@ -14,6 +15,10 @@ use rusoto_core::region::Region;
 use rusoto_s3::{PutObjectError, PutObjectOutput, PutObjectRequest, S3 as S3Trait, S3Client};
 use image;
 use image::GenericImage;
+use futures_cpupool::CpuPool;
+use futures::channel::oneshot;
+
+use self::error::S3Error;
 
 #[derive(PartialEq, Eq, Hash, Clone)]
 enum Size {
@@ -38,6 +43,7 @@ impl Display for Size {
 pub struct S3 {
     inner: Arc<S3Client<credentials::Credentials, HttpClient>>,
     bucket: String,
+    cpu_pool: Arc<CpuPool>,
 }
 
 static HASH_LEN_BYTES: u8 = 8;
@@ -50,34 +56,65 @@ impl S3 {
         Ok(Self {
             inner: Arc::new(S3Client::new(client, credentials, Region::UsEast1)),
             bucket: bucket.to_string(),
+            cpu_pool: Arc::new(CpuPool::new_num_cpus()),
         })
     }
 
-    fn generate_random_hash() -> String {
-        let mut name_bytes = vec![0; HASH_LEN_BYTES as usize];
-        let buffer = name_bytes.as_mut_slice();
-        rand::thread_rng().fill_bytes(buffer);
-        Self::encode_for_aws(&encode(buffer))
-    }
-
-    fn create_aws_name(prefix: &str, image_type: &str, size: Option<&Size>, random_hash: &str) -> String {
-        let name = match size {
-            Some(size) => format!("{}-{}-{}.{}", prefix, random_hash, size, image_type),
-            None => format!("{}-{}.{}", prefix, random_hash, image_type),
-        };
-        name
-    }
-
-    fn upload_image_with_size(
+    fn resize_and_upload_image_async(
         &self,
-        size: Option<&Size>,
+        size: &Size,
         content_type: &str,
         image_type: &str,
         random_hash: &str,
-        bytes: Vec<u8>,
-    ) -> Box<Future<Item = PutObjectOutput, Error = PutObjectError>> {
-        let name = Self::create_aws_name("img", image_type, size, random_hash);
-        self.raw_upload(name, Some(content_type.to_string()), bytes)
+        raw_pixels: Vec<u8>,
+    ) -> Box<Future<Item = (), Error = S3Error>> {
+        let self_clone = self.clone();
+        let size = size.clone();
+        let content_type = content_type.clone();
+        let image_type = image_type.clone();
+        let random_hash = random_hash.clone();
+        Box::new(
+            self.cpu_pool.spawn_fn(move || {
+                self_clone.resize_and_upload_image(&size, &content_type, &image_type, &random_hash, raw_pixels)
+            })
+        )
+    }
+
+    fn resize_and_upload_image(
+        &self,
+        size: &Size,
+        content_type: &str,
+        image_type: &str,
+        random_hash: &str,
+        raw_pixels: Vec<u8>,
+    ) -> Box<Future<Item = (), Error = S3Error>> {
+        let name = Self::create_aws_name("img", image_type, Some(size), random_hash);
+        let image_format = match image_type {
+            "png" => image::ImageFormat::PNG,
+            "jpg" | "jpeg" => image::ImageFormat::JPEG,
+            _ => {
+                return S3Error::Image(format!(
+                    "Unsupported image type: {}",
+                    image_type
+                )).into()
+            }
+        };
+        let img = match image::load_from_memory_with_format(&raw_pixels, image_format) {
+            Ok(data) => data,
+            Err(e) => return S3Error::Image(format!("Error paring image format: {}", e)).into()
+        };
+        let (w, h) = img.dimensions();
+        let smallest_dimension = if w < h { w } else { h };
+        if smallest_dimension == 0 {
+            return S3Error::Image("Uploaded image size is zero".to_string()).into();
+        }
+        let int_size = *size as u32;
+        let width = ((w as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
+        let height = ((h as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
+        let resized_image = img.resize_exact(width, height, image::FilterType::Triangle);
+        let mut buffer = Vec::new();
+        let _ = resized_image.save(&mut buffer, image::ImageFormat::PNG);
+        self.raw_upload(name, Some(content_type.to_string()), buffer)
     }
 
     pub fn upload_image(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = String, Error = PutObjectError>> {
@@ -107,7 +144,7 @@ impl S3 {
         key: String,
         content_type: Option<String>,
         bytes: Vec<u8>,
-    ) -> Box<Future<Item = PutObjectOutput, Error = PutObjectError>> {
+    ) -> Box<Future<Item = (), Error = S3Error>> {
         let request = PutObjectRequest {
             acl: Some("public-read".to_string()),
             body: Some(bytes),
@@ -136,7 +173,7 @@ impl S3 {
             tagging: None,
             website_redirect_location: None,
         };
-        Box::new(self.inner.put_object(&request))
+        Box::new(self.inner.put_object(&request).map(|| ()).map_err(|e| e.into()))
     }
 
     fn prepare_image(image_type: &str, bytes: &[u8]) -> Result<HashMap<Size, Vec<u8>>, image::ImageError> {
@@ -172,6 +209,21 @@ impl S3 {
             });
 
         Ok(hash)
+    }
+
+    fn generate_random_hash() -> String {
+        let mut name_bytes = vec![0; HASH_LEN_BYTES as usize];
+        let buffer = name_bytes.as_mut_slice();
+        rand::thread_rng().fill_bytes(buffer);
+        Self::encode_for_aws(&encode(buffer))
+    }
+
+    fn create_aws_name(prefix: &str, image_type: &str, size: Option<&Size>, random_hash: &str) -> String {
+        let name = match size {
+            Some(size) => format!("{}-{}-{}.{}", prefix, random_hash, size, image_type),
+            None => format!("{}-{}.{}", prefix, random_hash, image_type),
+        };
+        name
     }
 
     fn encode_for_aws(s: &str) -> String {
