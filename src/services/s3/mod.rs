@@ -135,7 +135,10 @@ impl S3 {
                 let int_size = size.clone() as u32;
                 let width = ((w as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
                 let height = ((h as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
-                let resized_image = image.resize_exact(width, height, image::FilterType::Triangle);
+                let resized_image = match int_size {
+                    x if x < smallest_dimension => image.resize_exact(width, height, image::FilterType::Triangle),
+                    _ => image,
+                };
                 let mut buffer = Vec::new();
                 let _ = resized_image.save(&mut buffer, image::ImageFormat::PNG);
                 Ok(buffer)
