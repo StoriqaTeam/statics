@@ -9,6 +9,7 @@ pub struct Config {
     pub server: Server,
     pub client: Client,
     pub s3: S3,
+    pub jwt: JWT,
 }
 
 /// Common server settings
@@ -24,6 +25,13 @@ pub struct S3 {
     pub secret: String,
     pub bucket: String,
 }
+
+/// JWT data
+#[derive(Debug, Deserialize, Clone)]
+pub struct JWT {
+    pub secret_key: String,
+}
+
 
 /// Http client settings
 #[derive(Debug, Deserialize, Clone)]
