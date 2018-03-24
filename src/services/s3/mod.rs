@@ -95,7 +95,7 @@ impl S3 {
             Err(e) => return S3Error::Image(format!("Error paring image format: {}", e)).into()
         };
 
-        let mut futures: Vec<_> = vec![Size::Thumb, Size::Small, Size::Medium, Size::Large].iter().map(|size| {
+        let mut futures: Vec<_> = [Size::Thumb, Size::Small, Size::Medium, Size::Large].iter().map(|size| {
             let img = image.clone();
             self.resize_and_upload_image_async(size, &content_type, image_type, &random_hash, img)
         }).collect();
