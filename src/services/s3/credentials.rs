@@ -1,5 +1,5 @@
 //! Credentials trait implementations for `rusoto` crate
-//! https://rusoto.github.io/rusoto/rusoto_core/trait.ProvideAwsCredentials.html
+//! [github](https://rusoto.github.io/rusoto/rusoto_core/trait.ProvideAwsCredentials.html)
 
 use rusoto_core::{AwsCredentials, CredentialsError, ProvideAwsCredentials};
 use futures::future::{ok, FutureResult};

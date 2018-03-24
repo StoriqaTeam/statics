@@ -2,7 +2,7 @@
 //! for hyper::Request. It might come as a surprise that we need to do this,
 //! but at this point of time `multipart` crate was designed for `hyper` <= 0.10
 //! which is synchronous and cannot be used with async hyper (> 0.11). There is
-//! an async implementation https://github.com/abonander/multipart-async, but
+//! an [async implementation](https://github.com/abonander/multipart-async), but
 //! it's in pre-alpha version.
 
 use multipart::server::HttpRequest;
