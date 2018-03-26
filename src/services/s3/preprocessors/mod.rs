@@ -14,10 +14,6 @@ pub trait Image {
     fn process(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = HashMap<ImageSize, Vec<u8>>, Error = S3Error>>;
 }
 
-pub trait ImageFactory<'a, T: Image + 'a> {
-    fn create(&'a CpuPool) -> T;
-}
-
 pub struct ImageImpl<'a> {
     cpu_pool: &'a CpuPool,
 }
@@ -102,10 +98,14 @@ impl<'a> Image for ImageImpl<'a> {
     }
 }
 
+pub trait ImageFactory {
+    fn create<'a>(&'a CpuPool) -> Box<Image + 'a>;
+}
+
 pub struct ImageFactoryImpl;
 
-impl<'a> ImageFactory<'a, ImageImpl<'a>> for ImageFactoryImpl {
-    fn create(pool: &'a CpuPool) -> ImageImpl {
-        ImageImpl::new(pool)
+impl ImageFactory for ImageFactoryImpl {
+    fn create<'a>(pool: &'a CpuPool) -> Box<ImageImpl<'a>> {
+        Box::new(ImageImpl::new(pool))
     }
 }
