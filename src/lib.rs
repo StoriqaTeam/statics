@@ -56,7 +56,7 @@ use stq_http::controller::Application;
 
 use config::Config;
 use services::s3::S3;
-use services::s3::preprocessors::ImageFactoryImpl;
+use services::s3::preprocessors::ImageImpl;
 
 /// Starts new web service from provided `Config`
 pub fn start_server(config: Config) {
@@ -82,7 +82,7 @@ pub fn start_server(config: Config) {
             &config.s3.secret,
             &config.s3.bucket,
             &handle,
-            Box::new(ImageFactoryImpl::new())
+            Box::new({|cpu_pool| Box::new(ImageImpl::new(cpu_pool)) })
         ).unwrap(),
     );
 

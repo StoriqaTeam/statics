@@ -98,14 +98,3 @@ impl<'a> Image for ImageImpl<'a> {
     }
 }
 
-pub trait ImageFactory {
-    fn create<'a>(&'a CpuPool) -> Box<Image + 'a>;
-}
-
-pub struct ImageFactoryImpl;
-
-impl ImageFactory for ImageFactoryImpl {
-    fn create<'a>(pool: &'a CpuPool) -> Box<ImageImpl<'a>> {
-        Box::new(ImageImpl::new(pool))
-    }
-}

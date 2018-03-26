@@ -17,7 +17,7 @@ use rusoto_core::region::Region;
 use rusoto_s3::{PutObjectRequest, S3 as S3Trait, S3Client};
 use futures_cpupool::CpuPool;
 
-use self::preprocessors::{Image, ImageFactory};
+use self::preprocessors::{Image};
 use self::error::S3Error;
 use self::types::ImageSize;
 
@@ -30,7 +30,7 @@ pub struct S3 {
     inner: Arc<S3Client<credentials::Credentials, HttpClient>>,
     bucket: String,
     cpu_pool: Arc<CpuPool>,
-    image_preprocessor_factory: Box<ImageFactory>,
+    image_preprocessor_factory: Arc<Box<for<'a> Fn(&'a CpuPool) -> Box<Image + 'a>>>
 }
 
 impl S3 {
@@ -40,7 +40,8 @@ impl S3 {
     /// * `secret` - AWS secret for s3 (from AWS console).
     /// * `bucket` - AWS s3 bucket name
     /// * `handle` - tokio event loop handle (needed for s3 http client)
-    pub fn new(key: &str, secret: &str, bucket: &str, handle: &Handle, image_preprocessor_factory: Box<ImageFactory> ) -> Result<Self, TlsError> {
+    pub fn new(key: &str, secret: &str, bucket: &str, handle: &Handle, image_preprocessor_factory: Box<for<'a> Fn(&'a CpuPool) -> Box<Image + 'a>> ) -> Result<Self, TlsError>
+    {
         let credentials = credentials::Credentials::new(key.to_string(), secret.to_string());
         let client = HttpClient::new(handle)?;
         // s3 doesn't require a region
@@ -48,7 +49,7 @@ impl S3 {
             inner: Arc::new(S3Client::new(client, credentials, Region::UsEast1)),
             bucket: bucket.to_string(),
             cpu_pool: Arc::new(CpuPool::new_num_cpus()),
-            image_preprocessor_factory,
+            image_preprocessor_factory: Arc::new(image_preprocessor_factory),
         })
     }
 
@@ -61,7 +62,7 @@ impl S3 {
         let random_hash = Self::generate_random_hash();
         let original_name = Self::create_aws_name("img", image_type, &ImageSize::Original, &random_hash);
         let url = format!("https://s3.amazonaws.com/{}/{}", self.bucket, original_name);
-        let preprocessor = preprocessors::ImageImpl::new(&*self.cpu_pool);
+        let preprocessor = (*self.image_preprocessor_factory)(&*self.cpu_pool);
         let self_clone = self.clone();
         Box::new(
             preprocessor.process(image_type, bytes)
