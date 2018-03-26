@@ -17,7 +17,7 @@ use rusoto_core::region::Region;
 use rusoto_s3::{PutObjectRequest, S3 as S3Trait, S3Client};
 use futures_cpupool::CpuPool;
 
-use self::preprocessors::Image;
+use self::preprocessors::{Image, ImageFactory};
 use self::error::S3Error;
 use self::types::ImageSize;
 
@@ -30,6 +30,7 @@ pub struct S3 {
     inner: Arc<S3Client<credentials::Credentials, HttpClient>>,
     bucket: String,
     cpu_pool: Arc<CpuPool>,
+    image_preprocessor_factory: Box<ImageFactory>,
 }
 
 impl S3 {
@@ -39,7 +40,7 @@ impl S3 {
     /// * `secret` - AWS secret for s3 (from AWS console).
     /// * `bucket` - AWS s3 bucket name
     /// * `handle` - tokio event loop handle (needed for s3 http client)
-    pub fn new(key: &str, secret: &str, bucket: &str, handle: &Handle) -> Result<Self, TlsError> {
+    pub fn new(key: &str, secret: &str, bucket: &str, handle: &Handle, image_preprocessor_factory: Box<ImageFactory> ) -> Result<Self, TlsError> {
         let credentials = credentials::Credentials::new(key.to_string(), secret.to_string());
         let client = HttpClient::new(handle)?;
         // s3 doesn't require a region
@@ -47,6 +48,7 @@ impl S3 {
             inner: Arc::new(S3Client::new(client, credentials, Region::UsEast1)),
             bucket: bucket.to_string(),
             cpu_pool: Arc::new(CpuPool::new_num_cpus()),
+            image_preprocessor_factory,
         })
     }
 
