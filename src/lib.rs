@@ -82,7 +82,7 @@ pub fn start_server(config: Config) {
             &config.s3.secret,
             &config.s3.bucket,
             &handle,
-            Box::new({|cpu_pool| Box::new(ImageImpl::new(cpu_pool)) })
+            {|cpu_pool| Box::new(ImageImpl::new(cpu_pool)) }
         ).unwrap(),
     );
 

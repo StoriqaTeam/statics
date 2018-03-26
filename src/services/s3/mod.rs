@@ -40,7 +40,9 @@ impl S3 {
     /// * `secret` - AWS secret for s3 (from AWS console).
     /// * `bucket` - AWS s3 bucket name
     /// * `handle` - tokio event loop handle (needed for s3 http client)
-    pub fn new(key: &str, secret: &str, bucket: &str, handle: &Handle, image_preprocessor_factory: Box<for<'a> Fn(&'a CpuPool) -> Box<Image + 'a>> ) -> Result<Self, TlsError>
+    /// * `image_preprocessor_factory` - closure that given a CPUPool reference returns Image
+    pub fn new<F>(key: &str, secret: &str, bucket: &str, handle: &Handle, image_preprocessor_factory: F ) -> Result<Self, TlsError>
+    where F: for<'a> Fn(&'a CpuPool) -> Box<Image + 'a> + 'static
     {
         let credentials = credentials::Credentials::new(key.to_string(), secret.to_string());
         let client = HttpClient::new(handle)?;
@@ -49,7 +51,7 @@ impl S3 {
             inner: Arc::new(S3Client::new(client, credentials, Region::UsEast1)),
             bucket: bucket.to_string(),
             cpu_pool: Arc::new(CpuPool::new_num_cpus()),
-            image_preprocessor_factory: Arc::new(image_preprocessor_factory),
+            image_preprocessor_factory: Arc::new(Box::new(image_preprocessor_factory)),
         })
     }
 
