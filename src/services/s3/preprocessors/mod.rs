@@ -12,6 +12,15 @@ use super::types::ImageSize;
 use services::types::ImageFormat;
 
 pub trait Image {
+    /// Process image specified by format and bytes encoded in this format
+    ///
+    /// * `format` - either "png" or "jpg" - these are types that are supported
+    /// * `bytes` - bytes representing encoded image
+    ///
+    /// Returns HashMap of sized and resized images encoded in PNG
+    ///
+    /// #Errors
+    /// * `S3Error::Image` if encoding is incorrect, incl zero dimensions
     fn process(&self, format: ImageFormat, bytes: Vec<u8>) -> Box<Future<Item = HashMap<ImageSize, Vec<u8>>, Error = S3Error>>;
 }
 
@@ -116,9 +125,10 @@ mod test {
         assert_eq!(image_hash[&ImageSize::Original], original_image_bytes);
     }
 
-        #[test]
+    #[test]
     fn test_image_process_jpeg() {
         let original_image_bytes = read_static_file("image-1280x800.jpg");
+        let coverted_original_image_bytes = read_static_file("image-1280x800.png");
         let thumb_image_bytes = read_static_file("image-1280x800-thumb.png");
         let small_image_bytes = read_static_file("image-1280x800-small.png");
         let medium_image_bytes = read_static_file("image-1280x800-medium.png");
@@ -126,13 +136,25 @@ mod test {
 
         let cpu_pool = CpuPool::new_num_cpus();
         let image = ImageImpl::new(&cpu_pool);
-        let image_hash = image.process(ImageFormat::JPG, original_image_bytes.clone()).wait().unwrap();
+        let image_hash = image.process(ImageFormat::JPG, original_image_bytes).wait().unwrap();
 
         assert_eq!(image_hash[&ImageSize::Thumb], thumb_image_bytes);
         assert_eq!(image_hash[&ImageSize::Small], small_image_bytes);
         assert_eq!(image_hash[&ImageSize::Medium], medium_image_bytes);
         assert_eq!(image_hash[&ImageSize::Large], large_image_bytes);
-        assert_eq!(image_hash[&ImageSize::Original], original_image_bytes);
+        assert_eq!(image_hash[&ImageSize::Original], coverted_original_image_bytes);
+    }
+
+    #[test]
+    fn test_image_process_invalid_bytes() {
+        let original_image_bytes = read_static_file("image-1280x800.jpg");
+        let cpu_pool = CpuPool::new_num_cpus();
+        let image = ImageImpl::new(&cpu_pool);
+        let error = image.process(ImageFormat::PNG, original_image_bytes.clone()).wait().err().unwrap();
+        match error {
+            S3Error::Image(_) => (),
+            e => assert!(false, format!("Expected error S3Error::Image, found {}", e)),
+        }
     }
 
 
