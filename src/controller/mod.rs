@@ -9,6 +9,7 @@ pub mod utils;
 
 use std::sync::Arc;
 use std::io::Read;
+use std::str::FromStr;
 
 use futures::stream::Stream;
 use futures::future;
@@ -30,6 +31,7 @@ use self::routes::Route;
 use config::Config;
 use services::system::{SystemService, SystemServiceImpl};
 use services::s3::S3;
+use services::types::ImageFormat;
 
 /// Controller handles route parsing and calling `Service` layer
 pub struct ControllerImpl {
@@ -94,15 +96,21 @@ impl Controller for ControllerImpl {
                                     )) as ControllerFuture
                                 }
                             };
-                            let content_type: String = field
+                            let format: Result<ImageFormat, ControllerError> = field
                                 .headers
                                 .content_type
-                                .map(|ct| ct.subtype().as_str().to_string())
-                                .unwrap_or("unknown".to_string());
+                                .ok_or(ControllerError::Parse("Unable to infer content_type for multipart request".to_string()))
+                                .and_then(|ct| ImageFormat::from_str(
+                                    ct.subtype().as_str()).map_err(|e| e.into()
+                                ));
+                            let format = match format {
+                                Ok(format) => format,
+                                Err(e) => return Box::new(future::err::<String, _>(e)),
+                            };
                             let mut data: Vec<u8> = Vec::new();
                             let _ = field.data.read_to_end(&mut data);
                             let result: ControllerFuture = Box::new(
-                                s3.upload_image(&content_type[..], data)
+                                s3.upload_image(format, data)
                                     .map(|name| format!("{{\"url\": \"{}\"}}", name))
                                     .map_err(|e| ControllerError::UnprocessableEntity(e.into())),
                             );

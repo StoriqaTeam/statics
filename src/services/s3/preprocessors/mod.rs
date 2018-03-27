@@ -5,13 +5,14 @@ use futures_cpupool::CpuPool;
 use futures::future::{Future};
 use futures::future;
 use image;
-use image::{DynamicImage, ImageFormat, FilterType, GenericImage};
+use image::{DynamicImage, FilterType, GenericImage};
 
 use super::error::S3Error;
 use super::types::ImageSize;
+use services::types::ImageFormat;
 
 pub trait Image {
-    fn process(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = HashMap<ImageSize, Vec<u8>>, Error = S3Error>>;
+    fn process(&self, format: ImageFormat, bytes: Vec<u8>) -> Box<Future<Item = HashMap<ImageSize, Vec<u8>>, Error = S3Error>>;
 }
 
 pub struct ImageImpl<'a> {
@@ -63,26 +64,16 @@ impl<'a> ImageImpl<'a> {
             _ => image,
         };
         let mut buffer = Vec::new();
-        let _ = resized_image.save(&mut buffer, ImageFormat::PNG);
+        let _ = resized_image.save(&mut buffer, ImageFormat::PNG.into());
         Ok(buffer)
     }
 }
 
 impl<'a> Image for ImageImpl<'a> {
-    fn process(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = HashMap<ImageSize, Vec<u8>>, Error = S3Error>> {
-         let image_format = match image_type {
-            "png" => image::ImageFormat::PNG,
-            "jpg" | "jpeg" => image::ImageFormat::JPEG,
-            _ => {
-                return S3Error::Image(format!(
-                    "Unsupported image type: {}",
-                    image_type
-                )).into()
-            }
-        };
-        let image = match image::load_from_memory_with_format(&bytes, image_format) {
+    fn process(&self, format: ImageFormat, bytes: Vec<u8>) -> Box<Future<Item = HashMap<ImageSize, Vec<u8>>, Error = S3Error>> {
+        let image = match image::load_from_memory_with_format(&bytes, format.into()) {
             Ok(data) => data,
-            Err(e) => return S3Error::Image(format!("Error paring image format: {}", e)).into()
+            Err(e) => return S3Error::Image(format!("Error parsing image with format {}: {}", format, e)).into()
         };
         let mut futures: Vec<Box<Future<Item = (ImageSize, Vec<u8>), Error = S3Error>>> = [ImageSize::Thumb, ImageSize::Small, ImageSize::Medium, ImageSize::Large].iter().map(|size| {
             let img = image.clone();
@@ -116,7 +107,7 @@ mod test {
 
         let cpu_pool = CpuPool::new_num_cpus();
         let image = ImageImpl::new(&cpu_pool);
-        let image_hash = image.process("png", original_image_bytes.clone()).wait().unwrap();
+        let image_hash = image.process(ImageFormat::PNG, original_image_bytes.clone()).wait().unwrap();
 
         assert_eq!(image_hash[&ImageSize::Thumb], thumb_image_bytes);
         assert_eq!(image_hash[&ImageSize::Small], small_image_bytes);
@@ -135,7 +126,7 @@ mod test {
 
         let cpu_pool = CpuPool::new_num_cpus();
         let image = ImageImpl::new(&cpu_pool);
-        let image_hash = image.process("jpg", original_image_bytes.clone()).wait().unwrap();
+        let image_hash = image.process(ImageFormat::JPG, original_image_bytes.clone()).wait().unwrap();
 
         assert_eq!(image_hash[&ImageSize::Thumb], thumb_image_bytes);
         assert_eq!(image_hash[&ImageSize::Small], small_image_bytes);

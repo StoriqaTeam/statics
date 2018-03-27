@@ -16,6 +16,7 @@ use rusoto_core::request::{HttpClient, TlsError};
 use rusoto_core::region::Region;
 use rusoto_s3::{PutObjectRequest, S3 as S3Trait, S3Client};
 use futures_cpupool::CpuPool;
+use services::types::ImageFormat;
 
 use self::preprocessors::{Image};
 use self::error::S3Error;
@@ -58,16 +59,16 @@ impl S3 {
     /// Uploads image along with all resized variants in `ImageSize` enum. If original image size is less
     /// than e.g. ImageSize::Large, then original image is uploaded instead of large.
     ///
-    /// * `image_type` - either "png", "jpg" or "jpeg" - these are types that are supported
+    /// * `format` - now only "png" or "jpg" are supported
     /// * `bytes` - bytes repesenting compessed image (compessed with `image_type` codec)
-    pub fn upload_image(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = String, Error = S3Error>> {
+    pub fn upload_image(&self, format: ImageFormat, bytes: Vec<u8>) -> Box<Future<Item = String, Error = S3Error>> {
         let random_hash = Self::generate_random_hash();
         let original_name = Self::create_aws_name("img", "png", &ImageSize::Original, &random_hash);
         let url = format!("https://s3.amazonaws.com/{}/{}", self.bucket, original_name);
         let preprocessor = (*self.image_preprocessor_factory)(&*self.cpu_pool);
         let self_clone = self.clone();
         Box::new(
-            preprocessor.process(image_type, bytes)
+            preprocessor.process(format, bytes)
                 .and_then(move |images_hash| {
                     let futures = images_hash.into_iter().map(move |(size, bytes)| self_clone.upload_image_with_size(&random_hash, &size, bytes));
                     future::join_all(futures).map(move |_| url)
