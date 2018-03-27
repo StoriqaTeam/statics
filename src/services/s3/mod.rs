@@ -4,6 +4,7 @@ pub mod error;
 pub mod credentials;
 pub mod preprocessors;
 pub mod types;
+pub mod client;
 
 use std::sync::Arc;
 use rand;
@@ -14,10 +15,11 @@ use futures::future::Future;
 use tokio_core::reactor::Handle;
 use rusoto_core::request::{HttpClient, TlsError};
 use rusoto_core::region::Region;
-use rusoto_s3::{PutObjectRequest, S3 as S3Trait, S3Client};
+use rusoto_s3::{S3Client as CrateS3Client};
 use futures_cpupool::CpuPool;
 use services::types::ImageFormat;
 
+use self::client::S3Client;
 use self::preprocessors::{Image};
 use self::error::S3Error;
 use self::types::ImageSize;
@@ -28,7 +30,7 @@ static HASH_LEN_BYTES: u8 = 8;
 /// S3 service
 #[derive(Clone)]
 pub struct S3 {
-    inner: Arc<S3Client<credentials::Credentials, HttpClient>>,
+    inner: Arc<Box<S3Client>>,
     bucket: String,
     cpu_pool: Arc<CpuPool>,
     image_preprocessor_factory: Arc<Box<for<'a> Fn(&'a CpuPool) -> Box<Image + 'a>>>
@@ -49,7 +51,7 @@ impl S3 {
         let client = HttpClient::new(handle)?;
         // s3 doesn't require a region
         Ok(Self {
-            inner: Arc::new(S3Client::new(client, credentials, Region::UsEast1)),
+            inner: Arc::new(Box::new(CrateS3Client::new(client, credentials, Region::UsEast1))),
             bucket: bucket.to_string(),
             cpu_pool: Arc::new(CpuPool::new_num_cpus()),
             image_preprocessor_factory: Arc::new(Box::new(image_preprocessor_factory)),
@@ -85,46 +87,46 @@ impl S3 {
     /// * `bytes` - bytes repesenting compessed image (compessed with `image_type` codec)
     fn upload_image_with_size(&self, random_hash: &str, size: &ImageSize, bytes: Vec<u8>) -> Box<Future<Item = (), Error = S3Error>> {
         let name = Self::create_aws_name("img", "png", size, random_hash);
-        self.upload_data(name, Some("image/png".to_string()), bytes)
+        self.inner.upload(self.bucket.clone(), name, Some("image/png".to_string()), bytes)
     }
 
-    /// Uploads raw bytes to s3 with filename `key` and content-type (used for serving file from s3)
-    fn upload_data(
-        &self,
-        key: String,
-        content_type: Option<String>,
-        bytes: Vec<u8>,
-    ) -> Box<Future<Item = (), Error = S3Error>> {
-        let request = PutObjectRequest {
-            acl: Some("public-read".to_string()),
-            body: Some(bytes),
-            bucket: self.bucket.clone(),
-            cache_control: None,
-            content_disposition: None,
-            content_encoding: None,
-            content_language: None,
-            content_length: None,
-            content_md5: None,
-            content_type,
-            expires: None,
-            grant_full_control: None,
-            grant_read: None,
-            grant_read_acp: None,
-            grant_write_acp: None,
-            key,
-            metadata: None,
-            request_payer: None,
-            sse_customer_algorithm: None,
-            sse_customer_key: None,
-            sse_customer_key_md5: None,
-            ssekms_key_id: None,
-            server_side_encryption: None,
-            storage_class: None,
-            tagging: None,
-            website_redirect_location: None,
-        };
-        Box::new(self.inner.put_object(&request).map(|_| ()).map_err(|e| e.into()))
-    }
+    // /// Uploads raw bytes to s3 with filename `key` and content-type (used for serving file from s3)
+    // fn upload_data(
+    //     &self,
+    //     key: String,
+    //     content_type: Option<String>,
+    //     bytes: Vec<u8>,
+    // ) -> Box<Future<Item = (), Error = S3Error>> {
+    //     let request = PutObjectRequest {
+    //         acl: Some("public-read".to_string()),
+    //         body: Some(bytes),
+    //         bucket: self.bucket.clone(),
+    //         cache_control: None,
+    //         content_disposition: None,
+    //         content_encoding: None,
+    //         content_language: None,
+    //         content_length: None,
+    //         content_md5: None,
+    //         content_type,
+    //         expires: None,
+    //         grant_full_control: None,
+    //         grant_read: None,
+    //         grant_read_acp: None,
+    //         grant_write_acp: None,
+    //         key,
+    //         metadata: None,
+    //         request_payer: None,
+    //         sse_customer_algorithm: None,
+    //         sse_customer_key: None,
+    //         sse_customer_key_md5: None,
+    //         ssekms_key_id: None,
+    //         server_side_encryption: None,
+    //         storage_class: None,
+    //         tagging: None,
+    //         website_redirect_location: None,
+    //     };
+    //     Box::new(self.inner.put_object(&request).map(|_| ()).map_err(|e| e.into()))
+    // }
 
     fn create_aws_name(prefix: &str, image_type: &str, size: &ImageSize, random_hash: &str) -> String {
         let name = match size {
