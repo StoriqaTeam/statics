@@ -1,3 +1,5 @@
+//! Client for AWS S3
+
 use rusoto_core::request::{HttpClient, TlsError};
 use rusoto_core::region::Region;
 use rusoto_s3::{PutObjectRequest, S3, S3Client as CrateS3Client};
@@ -7,6 +9,7 @@ use super::error::S3Error;
 use super::credentials::Credentials;
 
 pub trait S3Client {
+    /// Uploads raw bytes to s3 with filename `key` and content-type (used for serving file from s3)
     fn upload(
         &self,
         bucket: String,

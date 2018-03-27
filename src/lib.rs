@@ -77,12 +77,11 @@ pub fn start_server(config: Config) {
     handle.spawn(client_stream.for_each(|_| Ok(())));
 
     let s3 = Arc::new(
-        S3::new(
+        S3::create(
             &config.s3.key,
             &config.s3.secret,
             &config.s3.bucket,
             &handle,
-            {|cpu_pool| Box::new(ImageImpl::new(cpu_pool)) }
         ).unwrap(),
     );
 

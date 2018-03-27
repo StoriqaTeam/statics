@@ -20,7 +20,7 @@ use futures_cpupool::CpuPool;
 use services::types::ImageFormat;
 
 use self::client::S3Client;
-use self::preprocessors::{Image};
+use self::preprocessors::{Image, ImageImpl};
 use self::error::S3Error;
 use self::types::ImageSize;
 
@@ -39,24 +39,35 @@ pub struct S3 {
 impl S3 {
     /// Create s3 service
     ///
+    /// * `bucket` - AWS s3 bucket name
+    /// * `client` - client that implements S3Client trait
+    /// * `image_preprocessor_factory` - closure that given a CPUPool reference returns Image
+    pub fn new<F>(bucket: &str, client: Box<S3Client>, image_preprocessor_factory: F ) -> Self
+    where F: for<'a> Fn(&'a CpuPool) -> Box<Image + 'a> + 'static
+    {
+        // s3 doesn't require a region
+        Self {
+            inner: Arc::new(client),
+            bucket: bucket.to_string(),
+            cpu_pool: Arc::new(CpuPool::new_num_cpus()),
+            image_preprocessor_factory: Arc::new(Box::new(image_preprocessor_factory)),
+        }
+    }
+
+    /// Create s3 service
+    ///
     /// * `key` - AWS key for s3 (from AWS console).
     /// * `secret` - AWS secret for s3 (from AWS console).
     /// * `bucket` - AWS s3 bucket name
     /// * `handle` - tokio event loop handle (needed for s3 http client)
-    /// * `image_preprocessor_factory` - closure that given a CPUPool reference returns Image
-    pub fn new<F>(key: &str, secret: &str, bucket: &str, handle: &Handle, image_preprocessor_factory: F ) -> Result<Self, TlsError>
-    where F: for<'a> Fn(&'a CpuPool) -> Box<Image + 'a> + 'static
-    {
+    pub fn create(key: &str, secret: &str, bucket: &str, handle: &Handle) -> Result<Self, TlsError> {
         let credentials = credentials::Credentials::new(key.to_string(), secret.to_string());
         let client = HttpClient::new(handle)?;
-        // s3 doesn't require a region
-        Ok(Self {
-            inner: Arc::new(Box::new(CrateS3Client::new(client, credentials, Region::UsEast1))),
-            bucket: bucket.to_string(),
-            cpu_pool: Arc::new(CpuPool::new_num_cpus()),
-            image_preprocessor_factory: Arc::new(Box::new(image_preprocessor_factory)),
-        })
+        Ok(
+            Self::new(bucket, Box::new(CrateS3Client::new(client, credentials, Region::UsEast1)), {|cpu_pool| Box::new(ImageImpl::new(cpu_pool)) })
+        )
     }
+
 
     /// Uploads image along with all resized variants in `ImageSize` enum. If original image size is less
     /// than e.g. ImageSize::Large, then original image is uploaded instead of large.
