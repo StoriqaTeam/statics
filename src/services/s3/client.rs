@@ -1,7 +1,6 @@
 //! Client for AWS S3
 
-use rusoto_core::request::{HttpClient, TlsError};
-use rusoto_core::region::Region;
+use rusoto_core::request::{HttpClient};
 use rusoto_s3::{PutObjectRequest, S3, S3Client as CrateS3Client};
 use futures::future::Future;
 

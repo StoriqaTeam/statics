@@ -5,11 +5,9 @@ pub mod credentials;
 pub mod preprocessors;
 pub mod types;
 pub mod client;
+pub mod random;
 
 use std::sync::Arc;
-use rand;
-use rand::Rng;
-use base64::encode;
 use futures::future;
 use futures::future::Future;
 use tokio_core::reactor::Handle;
@@ -23,9 +21,7 @@ use self::client::S3Client;
 use self::preprocessors::{Image, ImageImpl};
 use self::error::S3Error;
 use self::types::ImageSize;
-
-/// Lenght of the random hash in s3 filename in bytes
-static HASH_LEN_BYTES: u8 = 8;
+use self::random::{Random, RandomImpl};
 
 /// S3 service
 #[derive(Clone)]
@@ -33,6 +29,7 @@ pub struct S3 {
     inner: Arc<Box<S3Client>>,
     bucket: String,
     cpu_pool: Arc<CpuPool>,
+    random: Arc<Box<Random>>,
     image_preprocessor_factory: Arc<Box<for<'a> Fn(&'a CpuPool) -> Box<Image + 'a>>>
 }
 
@@ -42,7 +39,7 @@ impl S3 {
     /// * `bucket` - AWS s3 bucket name
     /// * `client` - client that implements S3Client trait
     /// * `image_preprocessor_factory` - closure that given a CPUPool reference returns Image
-    pub fn new<F>(bucket: &str, client: Box<S3Client>, image_preprocessor_factory: F ) -> Self
+    pub fn new<F>(bucket: &str, client: Box<S3Client>, random: Box<Random>, image_preprocessor_factory: F ) -> Self
     where F: for<'a> Fn(&'a CpuPool) -> Box<Image + 'a> + 'static
     {
         // s3 doesn't require a region
@@ -50,6 +47,7 @@ impl S3 {
             inner: Arc::new(client),
             bucket: bucket.to_string(),
             cpu_pool: Arc::new(CpuPool::new_num_cpus()),
+            random: Arc::new(random),
             image_preprocessor_factory: Arc::new(Box::new(image_preprocessor_factory)),
         }
     }
@@ -63,8 +61,9 @@ impl S3 {
     pub fn create(key: &str, secret: &str, bucket: &str, handle: &Handle) -> Result<Self, TlsError> {
         let credentials = credentials::Credentials::new(key.to_string(), secret.to_string());
         let client = HttpClient::new(handle)?;
+        let random = RandomImpl::new();
         Ok(
-            Self::new(bucket, Box::new(CrateS3Client::new(client, credentials, Region::UsEast1)), {|cpu_pool| Box::new(ImageImpl::new(cpu_pool)) })
+            Self::new(bucket, Box::new(CrateS3Client::new(client, credentials, Region::UsEast1)), Box::new(random), {|cpu_pool| Box::new(ImageImpl::new(cpu_pool)) })
         )
     }
 
@@ -75,7 +74,7 @@ impl S3 {
     /// * `format` - now only "png" or "jpg" are supported
     /// * `bytes` - bytes repesenting compessed image (compessed with `image_type` codec)
     pub fn upload_image(&self, format: ImageFormat, bytes: Vec<u8>) -> Box<Future<Item = String, Error = S3Error>> {
-        let random_hash = Self::generate_random_hash();
+        let random_hash = self.random.generate_hash();
         let original_name = Self::create_aws_name("img", "png", &ImageSize::Original, &random_hash);
         let url = format!("https://s3.amazonaws.com/{}/{}", self.bucket, original_name);
         let preprocessor = (*self.image_preprocessor_factory)(&*self.cpu_pool);
@@ -87,7 +86,6 @@ impl S3 {
                     future::join_all(futures).map(move |_| url)
                 })
         )
-
     }
 
     /// Uploads an image with specific size to S3
@@ -101,44 +99,6 @@ impl S3 {
         self.inner.upload(self.bucket.clone(), name, Some("image/png".to_string()), bytes)
     }
 
-    // /// Uploads raw bytes to s3 with filename `key` and content-type (used for serving file from s3)
-    // fn upload_data(
-    //     &self,
-    //     key: String,
-    //     content_type: Option<String>,
-    //     bytes: Vec<u8>,
-    // ) -> Box<Future<Item = (), Error = S3Error>> {
-    //     let request = PutObjectRequest {
-    //         acl: Some("public-read".to_string()),
-    //         body: Some(bytes),
-    //         bucket: self.bucket.clone(),
-    //         cache_control: None,
-    //         content_disposition: None,
-    //         content_encoding: None,
-    //         content_language: None,
-    //         content_length: None,
-    //         content_md5: None,
-    //         content_type,
-    //         expires: None,
-    //         grant_full_control: None,
-    //         grant_read: None,
-    //         grant_read_acp: None,
-    //         grant_write_acp: None,
-    //         key,
-    //         metadata: None,
-    //         request_payer: None,
-    //         sse_customer_algorithm: None,
-    //         sse_customer_key: None,
-    //         sse_customer_key_md5: None,
-    //         ssekms_key_id: None,
-    //         server_side_encryption: None,
-    //         storage_class: None,
-    //         tagging: None,
-    //         website_redirect_location: None,
-    //     };
-    //     Box::new(self.inner.put_object(&request).map(|_| ()).map_err(|e| e.into()))
-    // }
-
     fn create_aws_name(prefix: &str, image_type: &str, size: &ImageSize, random_hash: &str) -> String {
         let name = match size {
             &ImageSize::Original => format!("{}-{}.{}", prefix, random_hash, image_type), // don't use postfix if this is original image
@@ -146,18 +106,14 @@ impl S3 {
         };
         name
     }
+}
 
-    fn generate_random_hash() -> String {
-        let mut name_bytes = vec![0; HASH_LEN_BYTES as usize];
-        let buffer = name_bytes.as_mut_slice();
-        rand::thread_rng().fill_bytes(buffer);
-        Self::encode_for_aws(&encode(buffer))
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    /// Three symbols +, /, = are not aws and url-friendly, just replace them
-    fn encode_for_aws(s: &str) -> String {
-        let s = s.replace("+", "A");
-        let s = s.replace("/", "B");
-        s.replace("=", "C")
+    #[test]
+    fn test_upload_image() {
+
     }
 }

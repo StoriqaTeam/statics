@@ -56,7 +56,6 @@ use stq_http::controller::Application;
 
 use config::Config;
 use services::s3::S3;
-use services::s3::preprocessors::ImageImpl;
 
 /// Starts new web service from provided `Config`
 pub fn start_server(config: Config) {
