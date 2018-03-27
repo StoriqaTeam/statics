@@ -62,7 +62,7 @@ impl S3 {
     /// * `bytes` - bytes repesenting compessed image (compessed with `image_type` codec)
     pub fn upload_image(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = String, Error = S3Error>> {
         let random_hash = Self::generate_random_hash();
-        let original_name = Self::create_aws_name("img", image_type, &ImageSize::Original, &random_hash);
+        let original_name = Self::create_aws_name("img", "png", &ImageSize::Original, &random_hash);
         let url = format!("https://s3.amazonaws.com/{}/{}", self.bucket, original_name);
         let preprocessor = (*self.image_preprocessor_factory)(&*self.cpu_pool);
         let self_clone = self.clone();
