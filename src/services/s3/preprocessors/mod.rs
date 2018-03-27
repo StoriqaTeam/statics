@@ -98,3 +98,57 @@ impl<'a> Image for ImageImpl<'a> {
     }
 }
 
+
+#[cfg(test)]
+mod test {
+    use std::fs::File;
+    use std::io::Read;
+    use futures_cpupool::CpuPool;
+
+    use super::*;
+    #[test]
+    fn test_image_process_png() {
+        let original_image_bytes = read_static_file("image-328x228.png");
+        let thumb_image_bytes = read_static_file("image-328x228-thumb.png");
+        let small_image_bytes = read_static_file("image-328x228-small.png");
+        let medium_image_bytes = read_static_file("image-328x228-medium.png");
+        let large_image_bytes = read_static_file("image-328x228-large.png");
+
+        let cpu_pool = CpuPool::new_num_cpus();
+        let image = ImageImpl::new(&cpu_pool);
+        let image_hash = image.process("png", original_image_bytes.clone()).wait().unwrap();
+
+        assert_eq!(image_hash[&ImageSize::Thumb], thumb_image_bytes);
+        assert_eq!(image_hash[&ImageSize::Small], small_image_bytes);
+        assert_eq!(image_hash[&ImageSize::Medium], medium_image_bytes);
+        assert_eq!(image_hash[&ImageSize::Large], large_image_bytes);
+        assert_eq!(image_hash[&ImageSize::Original], original_image_bytes);
+    }
+
+        #[test]
+    fn test_image_process_jpeg() {
+        let original_image_bytes = read_static_file("image-1280x800.jpg");
+        let thumb_image_bytes = read_static_file("image-1280x800-thumb.png");
+        let small_image_bytes = read_static_file("image-1280x800-small.png");
+        let medium_image_bytes = read_static_file("image-1280x800-medium.png");
+        let large_image_bytes = read_static_file("image-1280x800-large.png");
+
+        let cpu_pool = CpuPool::new_num_cpus();
+        let image = ImageImpl::new(&cpu_pool);
+        let image_hash = image.process("jpg", original_image_bytes.clone()).wait().unwrap();
+
+        assert_eq!(image_hash[&ImageSize::Thumb], thumb_image_bytes);
+        assert_eq!(image_hash[&ImageSize::Small], small_image_bytes);
+        assert_eq!(image_hash[&ImageSize::Medium], medium_image_bytes);
+        assert_eq!(image_hash[&ImageSize::Large], large_image_bytes);
+        assert_eq!(image_hash[&ImageSize::Original], original_image_bytes);
+    }
+
+
+    fn read_static_file(name: &str) -> Vec<u8> {
+        let mut file = File::open(format!("test/static_files/{}", name)).unwrap();
+        let mut buf = Vec::new();
+        let _ = file.read_to_end(&mut buf);
+        buf
+    }
+}
