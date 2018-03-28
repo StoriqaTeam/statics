@@ -7,7 +7,7 @@ pub mod types;
 pub mod client;
 pub mod random;
 
-use std::sync::Arc;
+use std::rc::Rc;
 use futures::future;
 use futures::future::Future;
 use tokio_core::reactor::Handle;
@@ -26,11 +26,11 @@ use self::random::{Random, RandomImpl};
 /// S3 service
 #[derive(Clone)]
 pub struct S3 {
-    inner: Arc<Box<S3Client>>,
+    inner: Rc<Box<S3Client>>,
     bucket: String,
-    cpu_pool: Arc<CpuPool>,
-    random: Arc<Box<Random>>,
-    image_preprocessor_factory: Arc<Box<for<'a> Fn(&'a CpuPool) -> Box<Image + 'a>>>
+    cpu_pool: Rc<CpuPool>,
+    random: Rc<Box<Random>>,
+    image_preprocessor_factory: Rc<Box<for<'a> Fn(&'a CpuPool) -> Box<Image + 'a>>>
 }
 
 impl S3 {
@@ -44,11 +44,11 @@ impl S3 {
     {
         // s3 doesn't require a region
         Self {
-            inner: Arc::new(client),
+            inner: Rc::new(client),
             bucket: bucket.to_string(),
-            cpu_pool: Arc::new(CpuPool::new_num_cpus()),
-            random: Arc::new(random),
-            image_preprocessor_factory: Arc::new(Box::new(image_preprocessor_factory)),
+            cpu_pool: Rc::new(CpuPool::new_num_cpus()),
+            random: Rc::new(random),
+            image_preprocessor_factory: Rc::new(Box::new(image_preprocessor_factory)),
         }
     }
 
