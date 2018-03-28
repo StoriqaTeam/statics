@@ -63,7 +63,7 @@ impl S3 {
         let client = HttpClient::new(handle)?;
         let random = RandomImpl::new();
         Ok(
-            Self::new(bucket, Box::new(CrateS3Client::new(client, credentials, Region::UsEast1)), Box::new(random), {|cpu_pool| Box::new(ImageImpl::new(cpu_pool)) })
+            Self::new(bucket, Box::new(CrateS3Client::new(client, credentials, Region::UsEast1)), Box::new(random), |cpu_pool| Box::new(ImageImpl::new(cpu_pool)))
         )
     }
 
@@ -112,6 +112,7 @@ impl S3 {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+    use std::cell::RefCell;
 
     struct RandomMock {
         hash: String,
@@ -119,7 +120,7 @@ mod tests {
 
     impl RandomMock {
         fn new(hash: &str) -> Self {
-            Self { hash: hash.clone() }
+            Self { hash: hash.to_string() }
         }
     }
 
@@ -129,10 +130,18 @@ mod tests {
         }
     }
 
-    struct ImageMock;
+    struct ImageMock<'a> {
+        _cpu_pool: &'a CpuPool,
+    }
 
-    impl Image for ImageMock {
-        fn process(&self, format: ImageFormat, bytes: Vec<u8>) -> Box<Future<Item = HashMap<ImageSize, Vec<u8>>, Error = S3Error>> {
+    impl<'a> ImageMock<'a> {
+        pub fn new(cpu_pool: &'a CpuPool) -> Self {
+            Self { _cpu_pool: cpu_pool }
+        }
+    }
+
+    impl<'a> Image for ImageMock<'a> {
+        fn process(&self, _format: ImageFormat, _bytes: Vec<u8>) -> Box<Future<Item = HashMap<ImageSize, Vec<u8>>, Error = S3Error>> {
             let mut result = HashMap::new();
             result.insert(ImageSize::Thumb, b"thumb".to_vec());
             result.insert(ImageSize::Small, b"small".to_vec());
@@ -144,36 +153,36 @@ mod tests {
     }
 
     struct S3ClientMock {
-        uploads: HashMap<String, Vec<u8>>,
+        uploads: RefCell<HashMap<String, Vec<u8>>>,
     }
 
     impl S3ClientMock {
         fn new() -> Self {
-            S3ClientMock { uploads: HashMap::new() }
+            S3ClientMock { uploads: RefCell::new(HashMap::new()) }
         }
     }
 
     impl S3Client for S3ClientMock {
         fn upload(
-            &mut self,
-            bucket: String,
+            &self,
+            _bucket: String,
             key: String,
-            content_type: Option<String>,
+            _content_type: Option<String>,
             bytes: Vec<u8>,
         ) -> Box<Future<Item = (), Error = S3Error>> {
-            self.uploads.insert(key, bytes);
-            future::ok(())
+            let mut uploads = self.uploads.borrow_mut();
+            uploads.insert(key, bytes);
+            Box::new(future::ok(()))
         }
     }
 
     #[test]
     fn test_upload_image() {
         let random = RandomMock::new("somehash");
-        let image_preprocessor_factory = { |_| ImageMock {} };
         let client = S3ClientMock::new();
-        let s3 = S3::new("bucket", client, random, image_preprocessor_factory);
+        let s3 = S3::new("bucket", Box::new(client), Box::new(random), |cpu_pool| { Box::new(ImageMock::new(cpu_pool)) });
 
-        let url = s3.upload_image(ImageFormat::PNG, b"".to_vec()).wait();
-        assert_eq!(url, "some_url");
+        let url = s3.upload_image(ImageFormat::PNG, b"".to_vec()).wait().unwrap();
+        assert_eq!(url, "https://s3.amazonaws.com/bucket/img-somehash.png");
     }
 }
