@@ -153,12 +153,12 @@ mod tests {
     }
 
     struct S3ClientMock {
-        pub uploads: RefCell<HashMap<String, Vec<u8>>>,
+        pub uploads: Rc<RefCell<HashMap<String, Vec<u8>>>>,
     }
 
     impl S3ClientMock {
         fn new() -> Self {
-            S3ClientMock { uploads: RefCell::new(HashMap::new()) }
+            S3ClientMock { uploads: Rc::new(RefCell::new(HashMap::new())) }
         }
     }
 
@@ -180,16 +180,17 @@ mod tests {
     fn test_upload_image() {
         let random = RandomMock::new("somehash");
         let client = S3ClientMock::new();
+        let uploads = client.uploads.clone();
         let s3 = S3::new("test-bucket", Box::new(client), Box::new(random), |cpu_pool| { Box::new(ImageMock::new(cpu_pool)) });
-        let mut image_hash = HashMap::new();
-        image_hash.insert("img-somehash-thumb.png".to_string(), b"thumb".to_vec());
-        image_hash.insert("img-somehash-small.png".to_string(), b"small".to_vec());
-        image_hash.insert("img-somehash-medium.png".to_string(), b"medium".to_vec());
-        image_hash.insert("img-somehash-large.png".to_string(), b"large".to_vec());
-        image_hash.insert("img-somehash.png".to_string(), b"original".to_vec());
+        let mut expected_uploads = HashMap::new();
+        expected_uploads.insert("img-somehash-thumb.png".to_string(), b"thumb".to_vec());
+        expected_uploads.insert("img-somehash-small.png".to_string(), b"small".to_vec());
+        expected_uploads.insert("img-somehash-medium.png".to_string(), b"medium".to_vec());
+        expected_uploads.insert("img-somehash-large.png".to_string(), b"large".to_vec());
+        expected_uploads.insert("img-somehash.png".to_string(), b"original".to_vec());
 
         let url = s3.upload_image(ImageFormat::PNG, b"".to_vec()).wait().unwrap();
         assert_eq!(url, "https://s3.amazonaws.com/test-bucket/img-somehash.png");
-        assert_eq!(client.uploads.into_inner(), image_hash);
+        assert_eq!(&*uploads.borrow(), &expected_uploads);
     }
 }
