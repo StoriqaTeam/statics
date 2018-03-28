@@ -73,6 +73,9 @@ impl S3 {
     ///
     /// * `format` - now only "png" or "jpg" are supported
     /// * `bytes` - bytes repesenting compessed image (compessed with `image_type` codec)
+    ///
+    /// #Errors
+    /// * `S3Error::Image` if encoding is incorrect, incl zero dimensions
     pub fn upload_image(&self, format: ImageFormat, bytes: Vec<u8>) -> Box<Future<Item = String, Error = S3Error>> {
         let random_hash = self.random.generate_hash();
         let original_name = Self::create_aws_name("img", "png", &ImageSize::Original, &random_hash);

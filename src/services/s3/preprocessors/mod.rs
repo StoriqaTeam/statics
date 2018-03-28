@@ -159,7 +159,7 @@ mod test {
 
 
     fn read_static_file(name: &str) -> Vec<u8> {
-        let mut file = File::open(format!("test/static_files/{}", name)).unwrap();
+        let mut file = File::open(format!("tests/static_files/{}", name)).unwrap();
         let mut buf = Vec::new();
         let _ = file.read_to_end(&mut buf);
         buf
