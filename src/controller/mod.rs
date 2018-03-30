@@ -99,10 +99,10 @@ impl Controller for ControllerImpl {
                             let format: Result<ImageFormat, ControllerError> = field
                                 .headers
                                 .content_type
-                                .ok_or(ControllerError::Parse("Unable to infer content_type for multipart request".to_string()))
-                                .and_then(|ct| ImageFormat::from_str(
-                                    ct.subtype().as_str()).map_err(|e| e.into()
-                                ));
+                                .ok_or(ControllerError::Parse(
+                                    "Unable to infer content_type for multipart request".to_string(),
+                                ))
+                                .and_then(|ct| ImageFormat::from_str(ct.subtype().as_str()).map_err(|e| e.into()));
                             let format = match format {
                                 Ok(format) => format,
                                 Err(e) => return Box::new(future::err::<String, _>(e)),

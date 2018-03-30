@@ -12,7 +12,6 @@
 //! large - 640 pixels. Example: `https://s3.amazonaws.com/storiqa-dev/img-2IpSsAjuxB8C.png` is original image,
 //! `https://s3.amazonaws.com/storiqa-dev/img-2IpSsAjuxB8C-large.png` is large image.
 
-
 extern crate base64;
 extern crate config as config_crate;
 extern crate env_logger;
@@ -58,7 +57,10 @@ use config::Config;
 use services::s3::S3;
 
 /// Starts new web service from provided `Config`
-pub fn start_server<F: FnOnce() -> () + 'static>(config: Config, callback: F) {
+///
+/// * `config` - application config
+/// * `callback` - callback when server is started
+pub fn start_server<F: FnOnce() + 'static>(config: Config, callback: F) {
     // Prepare logger
     env_logger::init().unwrap();
 

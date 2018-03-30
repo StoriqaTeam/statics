@@ -32,7 +32,6 @@ pub struct JWT {
     pub secret_key: String,
 }
 
-
 /// Http client settings
 #[derive(Debug, Deserialize, Clone)]
 pub struct Client {

@@ -1,6 +1,6 @@
 //! Client for AWS S3
 
-use rusoto_core::request::{HttpClient};
+use rusoto_core::request::HttpClient;
 use rusoto_s3::{PutObjectRequest, S3, S3Client as CrateS3Client};
 use futures::future::Future;
 
@@ -9,23 +9,11 @@ use super::credentials::Credentials;
 
 pub trait S3Client {
     /// Uploads raw bytes to s3 with filename `key` and content-type (used for serving file from s3)
-    fn upload(
-        &self,
-        bucket: String,
-        key: String,
-        content_type: Option<String>,
-        bytes: Vec<u8>,
-    ) -> Box<Future<Item = (), Error = S3Error>>;
+    fn upload(&self, bucket: String, key: String, content_type: Option<String>, bytes: Vec<u8>) -> Box<Future<Item = (), Error = S3Error>>;
 }
 
 impl S3Client for CrateS3Client<Credentials, HttpClient> {
-    fn upload(
-        &self,
-        bucket: String,
-        key: String,
-        content_type: Option<String>,
-        bytes: Vec<u8>,
-    ) -> Box<Future<Item = (), Error = S3Error>> {
+    fn upload(&self, bucket: String, key: String, content_type: Option<String>, bytes: Vec<u8>) -> Box<Future<Item = (), Error = S3Error>> {
         let request = PutObjectRequest {
             acl: Some("public-read".to_string()),
             body: Some(bytes),
@@ -55,10 +43,6 @@ impl S3Client for CrateS3Client<Credentials, HttpClient> {
             website_redirect_location: None,
         };
 
-        Box::new(
-            self.put_object(&request).map(|_| ()).map_err(|e| e.into())
-        )
+        Box::new(self.put_object(&request).map(|_| ()).map_err(|e| e.into()))
     }
 }
-
-

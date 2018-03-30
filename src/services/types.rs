@@ -1,9 +1,9 @@
 //! Type aliases for service module
 
-use std::fmt::{Display, Formatter, Error};
+use std::fmt::{Display, Error, Formatter};
 use std::str::FromStr;
 use futures::future::Future;
-use image::{ImageFormat as CrateImageFormat};
+use image::ImageFormat as CrateImageFormat;
 
 use super::error::ServiceError;
 
@@ -11,7 +11,7 @@ use super::error::ServiceError;
 #[derive(Clone, Copy)]
 pub enum ImageFormat {
     PNG,
-    JPG
+    JPG,
 }
 
 impl Display for ImageFormat {
@@ -29,7 +29,10 @@ impl FromStr for ImageFormat {
         match s {
             "png" => Ok(ImageFormat::PNG),
             "jpg" | "jpeg" => Ok(ImageFormat::JPG),
-            format => Err(ServiceError::Image(format!("Invalid image format: {}", format))),
+            format => Err(ServiceError::Image(format!(
+                "Invalid image format: {}",
+                format
+            ))),
         }
     }
 }
@@ -45,4 +48,3 @@ impl Into<CrateImageFormat> for ImageFormat {
 
 /// Service layer Future
 pub type ServiceFuture<T> = Box<Future<Item = T, Error = ServiceError>>;
-
