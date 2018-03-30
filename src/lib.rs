@@ -15,6 +15,7 @@
 extern crate base64;
 extern crate config as config_crate;
 extern crate env_logger;
+extern crate chrono;
 #[macro_use]
 extern crate failure;
 extern crate futures;
@@ -43,6 +44,7 @@ pub mod services;
 
 use std::sync::Arc;
 use std::process;
+use std::env;
 
 use futures::{Future, Stream};
 use futures::future;
@@ -55,14 +57,33 @@ use stq_http::controller::Application;
 
 use config::Config;
 use services::s3::S3;
+use log::{LogLevelFilter, LogRecord};
+use chrono::Utc;
+use env_logger::LogBuilder;
 
 /// Starts new web service from provided `Config`
 ///
 /// * `config` - application config
 /// * `callback` - callback when server is started
 pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>, callback: F) {
+    let formatter = |record: &LogRecord| {
+        let now = Utc::now();
+        format!(
+            "{} - {} - {}",
+            now.to_rfc3339(),
+            record.level(),
+            record.args()
+        )
+    };
+
+    let mut builder = LogBuilder::new();
+    builder.format(formatter).filter(None, LogLevelFilter::Info);
+
+    if env::var("RUST_LOG").is_ok() {
+        builder.parse(&env::var("RUST_LOG").unwrap());
+    }
     // Prepare logger
-    env_logger::init().unwrap();
+    builder.init().unwrap();
 
     // Prepare reactor
     let mut core = Core::new().expect("Unexpected error creating event loop core");

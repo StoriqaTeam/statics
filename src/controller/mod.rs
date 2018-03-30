@@ -83,7 +83,7 @@ impl Controller for ControllerImpl {
                             let multipart_entity = match Multipart::from_request(multipart_wrapper) {
                                 Err(_) => {
                                     return Box::new(future::err::<String, ControllerError>(
-                                        ControllerError::UnprocessableEntity(multipart_utils::MultipartError::Parse.into()),
+                                        ControllerError::UnprocessableEntity(multipart_utils::MultipartError::Parse("Couldn't convert request body to multipart".to_string()).into()),
                                     )) as ControllerFuture
                                 }
                                 Ok(mp) => mp,
@@ -92,16 +92,14 @@ impl Controller for ControllerImpl {
                                 Ok(Some(field)) => field,
                                 _ => {
                                     return Box::new(future::err::<String, ControllerError>(
-                                        ControllerError::UnprocessableEntity(multipart_utils::MultipartError::Parse.into()),
+                                        ControllerError::UnprocessableEntity(multipart_utils::MultipartError::Parse("Parsed multipart, but couldn't read the next entry".to_string()).into()),
                                     )) as ControllerFuture
                                 }
                             };
                             let format: Result<ImageFormat, ControllerError> = field
                                 .headers
                                 .content_type
-                                .ok_or(ControllerError::Parse(
-                                    "Unable to infer content_type for multipart request".to_string(),
-                                ))
+                                .ok_or(ControllerError::UnprocessableEntity(multipart_utils::MultipartError::Parse("Parsed and read entry, but couldn't read content-type".to_string()).into()))
                                 .and_then(|ct| ImageFormat::from_str(ct.subtype().as_str()).map_err(|e| e.into()));
                             let format = match format {
                                 Ok(format) => format,
