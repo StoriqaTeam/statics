@@ -13,6 +13,7 @@ use self::rand::Rng;
 
 type HttpClient = Client<HttpConnector>;
 
+#[derive(Clone)]
 pub struct Context {
     pub client: HttpClient,
     pub base_url: String,

@@ -4,6 +4,10 @@ extern crate statics_lib;
 extern crate stq_http;
 extern crate tokio_core;
 extern crate mime;
+extern crate serde;
+extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
 
 pub mod common;
 
@@ -13,27 +17,18 @@ use hyper::header::{ContentLength, ContentType};
 use std::str::FromStr;
 use stq_http::request_util::read_body;
 
-// fn multipart_mime(bound: &str) -> Mime {
-//     Mime(
-//         TopLevel::Multipart, SubLevel::Ext("form-data".into()),
-//         vec![(Attr::Ext("boundary".into()), Value::Ext(bound.into()))]
-//     )
-// }
-
-// pub struct Mime {
-//     source: Source,
-//     slash: usize,
-//     plus: Option<usize>,
-//     params: ParamSource,
-// }
-
+#[derive(Serialize, Deserialize)]
+struct UrlResponse {
+    url: String,
+}
 
 #[test]
 fn images_post() {
     let mut context = common::setup();
-    let bytes = common::read_static_file("image-328x228.png");
+    let original_filename = "image-328x228.png";
+    let original_bytes = common::read_static_file(original_filename);
     let mut body = b"-----------------------------2132006148186267924133397521\r\nContent-Disposition: form-data; name=\"file\"; filename=\"image-328x228.png\nContent-Type: image/png\r\n\r\n".to_vec();
-    body.extend(bytes);
+    body.extend(original_bytes);
     body.extend(b"\r\n-----------------------------2132006148186267924133397521--\r\n".into_iter());
     let boundary = "---------------------------2132006148186267924133397521";
     let mime = format!("multipart/form-data; boundary={}", boundary).parse::<mime::Mime>().unwrap();
@@ -51,12 +46,22 @@ fn images_post() {
                 .and_then(|resp| read_body(resp.body())),
         )
         .unwrap();
+    let url = serde_json::from_str::<UrlResponse>(&response).unwrap().url;
+    let futures = ["original", "thumb", "small", "medium", "large"].iter().map(|size| {
+        let filename = add_size_to_url(original_filename, size);
+        let url = add_size_to_url(url, size);
+        let response = context
+                    .client
+                    .get(url)
+                    .and_then(|resp| read_body(resp.body())),
+            )
+            .unwrap();
+    })
+    println!("{}", url);
     // assert_eq!(response, "\"Ok\"");
 }
 
-// -----------------------------12640807573495631281739717751
-// Content-Disposition: form-data; name="file"; filename="image-328x228.png"
-// Content-Type: image/png
-// -----------------------------12640807573495631281739717751--
-
-// Content-Type: multipart/form-data; boundary=---------------------------12640807573495631281739717751
+fn add_size_to_url(url: &str, size: &str) -> String {
+    if size == "original" return url;
+    url.replace(".png", format!("-{}.png", size))
+}
