@@ -58,7 +58,7 @@ use config::Config;
 use services::s3::S3;
 
 /// Starts new web service from provided `Config`
-pub fn start_server(config: Config) {
+pub fn start_server<F: FnOnce() -> () + 'static>(config: Config, callback: F) {
     // Prepare logger
     env_logger::init().unwrap();
 
@@ -126,5 +126,9 @@ pub fn start_server(config: Config) {
     );
 
     info!("Listening on http://{}", address);
+    handle.spawn_fn(move || {
+        callback();
+        future::ok(())
+    });
     core.run(future::empty::<(), ()>()).unwrap();
 }
