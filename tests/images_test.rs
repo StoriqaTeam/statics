@@ -50,38 +50,30 @@ fn images_post() {
         )
         .unwrap();
     let url = serde_json::from_str::<UrlResponse>(&response).unwrap().url;
-    // let futures = ["original", "thumb", "small", "medium", "large"].iter().map(|size| {
-    //     let filename = add_size_to_url(original_filename, size);
-    //     let url = add_size_to_url(url, size);
-    //     let response = context
-    //                 .client
-    //                 .get(url)
-    //                 .and_then(|resp| read_body(resp.body())),
-    //         )
-    //         .unwrap();
-    // })
-    println!("{}", url);
     let mut_ctx = &mut context;
-    // assert_eq!(response, "\"Ok\"");
-    let _: Vec<()> = ["original", "thumb", "small", "medium", "large"].iter().map(|size| {
-        let (local, remote) = fetch_image_from_s3_and_file(mut_ctx, original_filename, &url, size);
-        assert_eq!(local, remote);
+    let futures: Vec<_> = ["original", "thumb", "small", "medium", "large"].iter().map(|size| {
+            fetch_image_from_s3_and_file(mut_ctx, original_filename, &url, size)
+                .map(|(local, remote)| {
+                    assert_eq!(local, remote);
+                })
     }).collect();
+    let _ = mut_ctx.core.run(future::join_all(futures));
 }
 
-fn fetch_image_from_s3_and_file(context: &mut Context, filename: &str, url: &str, size: &str) -> (Vec<u8>, Vec<u8>) {
+fn fetch_image_from_s3_and_file(context: &mut Context, filename: &str, url: &str, size: &str) -> Box<Future<Item = (Vec<u8>, Vec<u8>), Error = hyper::Error>> {
         let filename = add_size_to_url(filename, size);
         let url = add_size_to_url(url, size);
-        println!("TOTO: {}", url);
         let uri = Uri::from_str(&url).unwrap();
-        let response = context.core.run(
+        Box::new(
             context
                 .client
                 .get(uri)
                 .and_then(|resp| read_bytes(resp.body()))
-        ).unwrap();
-        let file = common::read_static_file(&filename);
-        (response, file)
+                .map(move |remote_bytes| {
+                    let local_bytes = common::read_static_file(&filename);
+                    (remote_bytes, local_bytes)
+                })
+        )
 }
 
 fn add_size_to_url(url: &str, size: &str) -> String {
