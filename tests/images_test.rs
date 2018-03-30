@@ -19,6 +19,7 @@ use stq_http::request_util::read_body;
 use common::Context;
 use futures::future;
 use futures::Stream;
+use hyper::{StatusCode};
 
 #[derive(Serialize, Deserialize)]
 struct UrlResponse {
@@ -27,7 +28,7 @@ struct UrlResponse {
 
 #[test]
 fn images_post() {
-    let mut context = common::setup();
+    let context = &mut common::setup();
     let original_filename = "image-328x228.png";
     let original_bytes = common::read_static_file(original_filename);
     let mut body = b"-----------------------------2132006148186267924133397521\r\nContent-Disposition: form-data; name=\"file\"; filename=\"image-328x228.png\nContent-Type: image/png\r\n\r\n".to_vec();
@@ -46,18 +47,20 @@ fn images_post() {
             context
                 .client
                 .request(req)
-                .and_then(|resp| read_body(resp.body())),
         )
         .unwrap();
-    let url = serde_json::from_str::<UrlResponse>(&response).unwrap().url;
-    let mut_ctx = &mut context;
+
+    assert_eq!(response.status(), StatusCode::Ok);
+
+    let body = context.core.run(read_body(response.body())).unwrap();
+    let url = serde_json::from_str::<UrlResponse>(&body).unwrap().url;
     let futures: Vec<_> = ["original", "thumb", "small", "medium", "large"].iter().map(|size| {
-            fetch_image_from_s3_and_file(mut_ctx, original_filename, &url, size)
+            fetch_image_from_s3_and_file(context, original_filename, &url, size)
                 .map(|(local, remote)| {
                     assert_eq!(local, remote);
                 })
     }).collect();
-    let _ = mut_ctx.core.run(future::join_all(futures));
+    let _ = context.core.run(future::join_all(futures));
 }
 
 fn fetch_image_from_s3_and_file(context: &mut Context, filename: &str, url: &str, size: &str) -> Box<Future<Item = (Vec<u8>, Vec<u8>), Error = hyper::Error>> {
