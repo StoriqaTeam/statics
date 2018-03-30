@@ -16,5 +16,5 @@ extern crate statics_lib;
 
 fn main() {
     let config = statics_lib::config::Config::new().expect("Can't load app config!");
-    statics_lib::start_server(config, || ());
+    statics_lib::start_server(config, None, || ());
 }

@@ -60,7 +60,7 @@ use services::s3::S3;
 ///
 /// * `config` - application config
 /// * `callback` - callback when server is started
-pub fn start_server<F: FnOnce() + 'static>(config: Config, callback: F) {
+pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>, callback: F) {
     // Prepare logger
     env_logger::init().unwrap();
 
@@ -86,15 +86,10 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, callback: F) {
         ).unwrap(),
     );
 
-    // Prepare server
-    let address = config
-        .server
-        .address
-        .parse()
-        .expect("Address must be set in configuration");
-
-    // Prepare CPU pool
-    // let cpu_pool = CpuPool::new(thread_count);
+    let address = {
+        let port = port.as_ref().unwrap_or(&config.server.port);
+        format!("{}:{}", config.server.host, port).parse().expect("Could not parse address")
+    };
 
     let serve = Http::new()
         .serve_addr_handle(&address, &handle, move || {

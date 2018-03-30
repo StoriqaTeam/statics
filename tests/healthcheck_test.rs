@@ -26,3 +26,10 @@ fn healthcheck_returns_ok() {
         .unwrap();
     assert_eq!(response, "\"Ok\"");
 }
+
+// -----------------------------12640807573495631281739717751
+// Content-Disposition: form-data; name="file"; filename="image-328x228.png"
+// Content-Type: image/png
+// -----------------------------12640807573495631281739717751--
+
+// Content-Type: multipart/form-data; boundary=---------------------------12640807573495631281739717751
