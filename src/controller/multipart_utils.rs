@@ -55,5 +55,5 @@ impl HttpRequest for MultipartRequest {
 
 #[derive(Debug, Fail)]
 pub enum MultipartError {
-    #[fail(display = "Failed to parse multipart body")] Parse,
+    #[fail(display = "Failed to parse multipart body: {}", _0)] Parse(String),
 }

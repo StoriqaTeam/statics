@@ -1,6 +1,6 @@
 //! Shared types for s3 service
 
-use std::fmt::{Display, Formatter, Error};
+use std::fmt::{Display, Error, Formatter};
 
 /// Image sizes that will go to s3 for traffic optimization
 #[derive(PartialEq, Eq, Hash, Clone)]
@@ -10,7 +10,7 @@ pub enum ImageSize {
     Medium = 320,
     Large = 640,
     /// Original means don't resize
-    Original = 0
+    Original = 0,
 }
 
 impl Display for ImageSize {

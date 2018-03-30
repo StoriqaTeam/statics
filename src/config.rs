@@ -15,7 +15,8 @@ pub struct Config {
 /// Common server settings
 #[derive(Debug, Deserialize, Clone)]
 pub struct Server {
-    pub address: String,
+    pub host: String,
+    pub port: String,
 }
 
 /// AWS S3 credentials
@@ -31,7 +32,6 @@ pub struct S3 {
 pub struct JWT {
     pub secret_key: String,
 }
-
 
 /// Http client settings
 #[derive(Debug, Deserialize, Clone)]

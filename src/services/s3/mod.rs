@@ -4,71 +4,97 @@ pub mod error;
 pub mod credentials;
 pub mod preprocessors;
 pub mod types;
+pub mod client;
+pub mod random;
 
-use std::sync::Arc;
-use rand;
-use rand::Rng;
-use base64::encode;
+use std::rc::Rc;
 use futures::future;
 use futures::future::Future;
 use tokio_core::reactor::Handle;
 use rusoto_core::request::{HttpClient, TlsError};
 use rusoto_core::region::Region;
-use rusoto_s3::{PutObjectRequest, S3 as S3Trait, S3Client};
+use rusoto_s3::S3Client as CrateS3Client;
 use futures_cpupool::CpuPool;
+use services::types::ImageFormat;
 
-use self::preprocessors::Image;
+use self::client::S3Client;
+use self::preprocessors::{Image, ImageImpl};
 use self::error::S3Error;
 use self::types::ImageSize;
-
-/// Lenght of the random hash in s3 filename in bytes
-static HASH_LEN_BYTES: u8 = 8;
+use self::random::{Random, RandomImpl};
 
 /// S3 service
 #[derive(Clone)]
 pub struct S3 {
-    inner: Arc<S3Client<credentials::Credentials, HttpClient>>,
+    inner: Rc<Box<S3Client>>,
     bucket: String,
-    cpu_pool: Arc<CpuPool>,
+    cpu_pool: Rc<CpuPool>,
+    random: Rc<Box<Random>>,
+    image_preprocessor_factory: Rc<Box<for<'a> Fn(&'a CpuPool) -> Box<Image + 'a>>>,
 }
 
 impl S3 {
+    /// Create s3 service
+    ///
+    /// * `bucket` - AWS s3 bucket name
+    /// * `client` - client that implements S3Client trait
+    /// * `image_preprocessor_factory` - closure that given a CPUPool reference returns Image
+    pub fn new<F>(bucket: &str, client: Box<S3Client>, random: Box<Random>, image_preprocessor_factory: F) -> Self
+    where
+        F: for<'a> Fn(&'a CpuPool) -> Box<Image + 'a> + 'static,
+    {
+        // s3 doesn't require a region
+        Self {
+            inner: Rc::new(client),
+            bucket: bucket.to_string(),
+            cpu_pool: Rc::new(CpuPool::new_num_cpus()),
+            random: Rc::new(random),
+            image_preprocessor_factory: Rc::new(Box::new(image_preprocessor_factory)),
+        }
+    }
+
     /// Create s3 service
     ///
     /// * `key` - AWS key for s3 (from AWS console).
     /// * `secret` - AWS secret for s3 (from AWS console).
     /// * `bucket` - AWS s3 bucket name
     /// * `handle` - tokio event loop handle (needed for s3 http client)
-    pub fn new(key: &str, secret: &str, bucket: &str, handle: &Handle) -> Result<Self, TlsError> {
+    pub fn create(key: &str, secret: &str, bucket: &str, handle: &Handle) -> Result<Self, TlsError> {
         let credentials = credentials::Credentials::new(key.to_string(), secret.to_string());
         let client = HttpClient::new(handle)?;
-        // s3 doesn't require a region
-        Ok(Self {
-            inner: Arc::new(S3Client::new(client, credentials, Region::UsEast1)),
-            bucket: bucket.to_string(),
-            cpu_pool: Arc::new(CpuPool::new_num_cpus()),
-        })
+        let random = RandomImpl::new();
+        Ok(Self::new(
+            bucket,
+            Box::new(CrateS3Client::new(client, credentials, Region::UsEast1)),
+            Box::new(random),
+            |cpu_pool| Box::new(ImageImpl::new(cpu_pool)),
+        ))
     }
 
     /// Uploads image along with all resized variants in `ImageSize` enum. If original image size is less
     /// than e.g. ImageSize::Large, then original image is uploaded instead of large.
     ///
-    /// * `image_type` - either "png", "jpg" or "jpeg" - these are types that are supported
+    /// * `format` - now only "png" or "jpg" are supported
     /// * `bytes` - bytes repesenting compessed image (compessed with `image_type` codec)
-    pub fn upload_image(&self, image_type: &str, bytes: Vec<u8>) -> Box<Future<Item = String, Error = S3Error>> {
-        let random_hash = Self::generate_random_hash();
-        let original_name = Self::create_aws_name("img", image_type, &ImageSize::Original, &random_hash);
+    ///
+    /// #Errors
+    /// * `S3Error::Image` if encoding is incorrect, incl zero dimensions
+    pub fn upload_image(&self, format: ImageFormat, bytes: Vec<u8>) -> Box<Future<Item = String, Error = S3Error>> {
+        let random_hash = self.random.generate_hash();
+        let original_name = Self::create_aws_name("img", "png", &ImageSize::Original, &random_hash);
         let url = format!("https://s3.amazonaws.com/{}/{}", self.bucket, original_name);
-        let preprocessor = preprocessors::ImageImpl::new(&*self.cpu_pool);
+        let preprocessor = (*self.image_preprocessor_factory)(&*self.cpu_pool);
         let self_clone = self.clone();
         Box::new(
-            preprocessor.process(image_type, bytes)
+            preprocessor
+                .process(format, bytes)
                 .and_then(move |images_hash| {
-                    let futures = images_hash.into_iter().map(move |(size, bytes)| self_clone.upload_image_with_size(&random_hash, &size, bytes));
+                    let futures = images_hash
+                        .into_iter()
+                        .map(move |(size, bytes)| self_clone.upload_image_with_size(&random_hash, &size, bytes));
                     future::join_all(futures).map(move |_| url)
-                })
+                }),
         )
-
     }
 
     /// Uploads an image with specific size to S3
@@ -79,45 +105,12 @@ impl S3 {
     /// * `bytes` - bytes repesenting compessed image (compessed with `image_type` codec)
     fn upload_image_with_size(&self, random_hash: &str, size: &ImageSize, bytes: Vec<u8>) -> Box<Future<Item = (), Error = S3Error>> {
         let name = Self::create_aws_name("img", "png", size, random_hash);
-        self.upload_data(name, Some("image/png".to_string()), bytes)
-    }
-
-    /// Uploads raw bytes to s3 with filename `key` and content-type (used for serving file from s3)
-    fn upload_data(
-        &self,
-        key: String,
-        content_type: Option<String>,
-        bytes: Vec<u8>,
-    ) -> Box<Future<Item = (), Error = S3Error>> {
-        let request = PutObjectRequest {
-            acl: Some("public-read".to_string()),
-            body: Some(bytes),
-            bucket: self.bucket.clone(),
-            cache_control: None,
-            content_disposition: None,
-            content_encoding: None,
-            content_language: None,
-            content_length: None,
-            content_md5: None,
-            content_type,
-            expires: None,
-            grant_full_control: None,
-            grant_read: None,
-            grant_read_acp: None,
-            grant_write_acp: None,
-            key,
-            metadata: None,
-            request_payer: None,
-            sse_customer_algorithm: None,
-            sse_customer_key: None,
-            sse_customer_key_md5: None,
-            ssekms_key_id: None,
-            server_side_encryption: None,
-            storage_class: None,
-            tagging: None,
-            website_redirect_location: None,
-        };
-        Box::new(self.inner.put_object(&request).map(|_| ()).map_err(|e| e.into()))
+        self.inner.upload(
+            self.bucket.clone(),
+            name,
+            Some("image/png".to_string()),
+            bytes,
+        )
     }
 
     fn create_aws_name(prefix: &str, image_type: &str, size: &ImageSize, random_hash: &str) -> String {
@@ -127,18 +120,104 @@ impl S3 {
         };
         name
     }
+}
 
-    fn generate_random_hash() -> String {
-        let mut name_bytes = vec![0; HASH_LEN_BYTES as usize];
-        let buffer = name_bytes.as_mut_slice();
-        rand::thread_rng().fill_bytes(buffer);
-        Self::encode_for_aws(&encode(buffer))
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::cell::RefCell;
+
+    struct RandomMock {
+        hash: String,
     }
 
-    /// Three symbols +, /, = are not aws and url-friendly, just replace them
-    fn encode_for_aws(s: &str) -> String {
-        let s = s.replace("+", "A");
-        let s = s.replace("/", "B");
-        s.replace("=", "C")
+    impl RandomMock {
+        fn new(hash: &str) -> Self {
+            Self {
+                hash: hash.to_string(),
+            }
+        }
+    }
+
+    impl Random for RandomMock {
+        fn generate_hash(&self) -> String {
+            self.hash.clone()
+        }
+    }
+
+    struct ImageMock<'a> {
+        _cpu_pool: &'a CpuPool,
+    }
+
+    impl<'a> ImageMock<'a> {
+        pub fn new(cpu_pool: &'a CpuPool) -> Self {
+            Self {
+                _cpu_pool: cpu_pool,
+            }
+        }
+    }
+
+    impl<'a> Image for ImageMock<'a> {
+        fn process(&self, _format: ImageFormat, _bytes: Vec<u8>) -> Box<Future<Item = HashMap<ImageSize, Vec<u8>>, Error = S3Error>> {
+            let mut result = HashMap::new();
+            result.insert(ImageSize::Thumb, b"thumb".to_vec());
+            result.insert(ImageSize::Small, b"small".to_vec());
+            result.insert(ImageSize::Medium, b"medium".to_vec());
+            result.insert(ImageSize::Large, b"large".to_vec());
+            result.insert(ImageSize::Original, b"original".to_vec());
+            Box::new(future::ok(result))
+        }
+    }
+
+    struct S3ClientMock {
+        pub uploads: Rc<RefCell<HashMap<String, Vec<u8>>>>,
+    }
+
+    impl S3ClientMock {
+        fn new() -> Self {
+            S3ClientMock {
+                uploads: Rc::new(RefCell::new(HashMap::new())),
+            }
+        }
+    }
+
+    impl S3Client for S3ClientMock {
+        fn upload(
+            &self,
+            _bucket: String,
+            key: String,
+            _content_type: Option<String>,
+            bytes: Vec<u8>,
+        ) -> Box<Future<Item = (), Error = S3Error>> {
+            let mut uploads = self.uploads.borrow_mut();
+            uploads.insert(key, bytes);
+            Box::new(future::ok(()))
+        }
+    }
+
+    #[test]
+    fn test_upload_image() {
+        let random = RandomMock::new("somehash");
+        let client = S3ClientMock::new();
+        let uploads = client.uploads.clone();
+        let s3 = S3::new(
+            "test-bucket",
+            Box::new(client),
+            Box::new(random),
+            |cpu_pool| Box::new(ImageMock::new(cpu_pool)),
+        );
+        let mut expected_uploads = HashMap::new();
+        expected_uploads.insert("img-somehash-thumb.png".to_string(), b"thumb".to_vec());
+        expected_uploads.insert("img-somehash-small.png".to_string(), b"small".to_vec());
+        expected_uploads.insert("img-somehash-medium.png".to_string(), b"medium".to_vec());
+        expected_uploads.insert("img-somehash-large.png".to_string(), b"large".to_vec());
+        expected_uploads.insert("img-somehash.png".to_string(), b"original".to_vec());
+
+        let url = s3.upload_image(ImageFormat::PNG, b"".to_vec())
+            .wait()
+            .unwrap();
+        assert_eq!(url, "https://s3.amazonaws.com/test-bucket/img-somehash.png");
+        assert_eq!(&*uploads.borrow(), &expected_uploads);
     }
 }
