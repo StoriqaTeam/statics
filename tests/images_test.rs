@@ -61,21 +61,12 @@ fn images_post() {
     //         .unwrap();
     // })
     println!("{}", url);
+    let mut_ctx = &mut context;
     // assert_eq!(response, "\"Ok\"");
-    let (local, remote) = fetch_image_from_s3_and_file(&mut context, original_filename, &url, "original");
-    assert_eq!(local, remote);
-    let (local, remote) = fetch_image_from_s3_and_file(&mut context, original_filename, &url, "thumb");
-    assert_eq!(local, remote);
-
-    // let (local, remote) = fetch_image_from_s3_and_file(context, original_filename, &url, "thumb");
-    // assert_eq!(local, remote);
-    // let (local, remote) = fetch_image_from_s3_and_file(context, original_filename, &url, "small");
-    // assert_eq!(local, remote);
-    // let (local, remote) = fetch_image_from_s3_and_file(context, original_filename, &url, "medium");
-    // assert_eq!(local, remote);
-    // let (local, remote) = fetch_image_from_s3_and_file(context, original_filename, &url, "large");
-    // assert_eq!(local, remote);
-
+    let _: Vec<()> = ["original", "thumb", "small", "medium", "large"].iter().map(|size| {
+        let (local, remote) = fetch_image_from_s3_and_file(mut_ctx, original_filename, &url, size);
+        assert_eq!(local, remote);
+    }).collect();
 }
 
 fn fetch_image_from_s3_and_file(context: &mut Context, filename: &str, url: &str, size: &str) -> (Vec<u8>, Vec<u8>) {
