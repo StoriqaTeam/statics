@@ -1,4 +1,5 @@
 extern crate rand;
+extern crate hyper_tls;
 
 use statics_lib;
 
@@ -10,10 +11,10 @@ use hyper::client::HttpConnector;
 use tokio_core::reactor::Core;
 use std::sync::mpsc::channel;
 use self::rand::Rng;
+use self::hyper_tls::HttpsConnector;
 
-type HttpClient = Client<HttpConnector>;
+type HttpClient = Client<HttpsConnector<HttpConnector>>;
 
-#[derive(Clone)]
 pub struct Context {
     pub client: HttpClient,
     pub base_url: String,
@@ -30,7 +31,9 @@ pub fn setup() -> Context {
     });
     rx.recv().unwrap();
     let core = Core::new().expect("Unexpected error creating event loop core");
-    let client = Client::new(&core.handle());
+    let client = ::hyper::Client::configure()
+        .connector(HttpsConnector::new(4, &core.handle()).unwrap())
+        .build(&core.handle());
     Context {
         client,
         base_url: format!("http://localhost:{}", port),
