@@ -29,3 +29,6 @@ image = { version = "0.18.0", default-features = false, features = ["jpeg", "png
 base64 = "0.9.0"
 stq_http = { path = "vendor/libstqbackend/http" }
 stq_router = { path = "vendor/libstqbackend/router" }
+
+[dev-dependencies]
+multipart = { version = "0.14.2", default-features = false, features = ["server", "client", "hyper"] }
