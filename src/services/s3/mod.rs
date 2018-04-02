@@ -26,11 +26,11 @@ use self::random::{Random, RandomImpl};
 /// S3 service
 #[derive(Clone)]
 pub struct S3 {
-    inner: Rc<Box<S3Client>>,
+    inner: Rc<S3Client>,
     bucket: String,
     cpu_pool: Rc<CpuPool>,
-    random: Rc<Box<Random>>,
-    image_preprocessor_factory: Rc<Box<for<'a> Fn(&'a CpuPool) -> Box<Image + 'a>>>,
+    random: Rc<Random>,
+    image_preprocessor_factory: Rc<for<'a> Fn(&'a CpuPool) -> Box<Image + 'a>>,
 }
 
 impl S3 {
@@ -45,11 +45,11 @@ impl S3 {
     {
         // s3 doesn't require a region
         Self {
-            inner: Rc::new(client),
+            inner: client.into(),
             bucket: bucket.to_string(),
             cpu_pool: Rc::new(CpuPool::new_num_cpus()),
-            random: Rc::new(random),
-            image_preprocessor_factory: Rc::new(Box::new(image_preprocessor_factory)),
+            random: random.into(),
+            image_preprocessor_factory: Rc::new(image_preprocessor_factory),
         }
     }
 
