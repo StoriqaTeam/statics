@@ -147,26 +147,20 @@ mod tests {
 
     impl<'a> Image for ImageMock<'a> {
         fn process(&self, _format: ImageFormat, _bytes: Vec<u8>) -> Box<Future<Item = HashMap<ImageSize, Vec<u8>>, Error = S3Error>> {
-            let mut result = HashMap::new();
-            result.insert(ImageSize::Thumb, b"thumb".to_vec());
-            result.insert(ImageSize::Small, b"small".to_vec());
-            result.insert(ImageSize::Medium, b"medium".to_vec());
-            result.insert(ImageSize::Large, b"large".to_vec());
-            result.insert(ImageSize::Original, b"original".to_vec());
+            let result = hashmap! {
+                ImageSize::Thumb => b"thumb".to_vec(),
+                ImageSize::Small => b"small".to_vec(),
+                ImageSize::Medium => b"medium".to_vec(),
+                ImageSize::Large => b"large".to_vec(),
+                ImageSize::Original => b"original".to_vec(),
+            };
             Box::new(future::ok(result))
         }
     }
 
+    #[derive(Default)]
     struct S3ClientMock {
         pub uploads: Rc<RefCell<HashMap<String, Vec<u8>>>>,
-    }
-
-    impl S3ClientMock {
-        fn new() -> Self {
-            S3ClientMock {
-                uploads: Rc::new(RefCell::new(HashMap::new())),
-            }
-        }
     }
 
     impl S3Client for S3ClientMock {
@@ -186,17 +180,18 @@ mod tests {
     #[test]
     fn test_upload_image() {
         let random = RandomMock::new("somehash");
-        let client = S3ClientMock::new();
+        let client = S3ClientMock::default();
         let uploads = client.uploads.clone();
         let s3 = S3::new("test-bucket", Box::new(client), Box::new(random), |cpu_pool| {
             Box::new(ImageMock::new(cpu_pool))
         });
-        let mut expected_uploads = HashMap::new();
-        expected_uploads.insert("img-somehash-thumb.png".to_string(), b"thumb".to_vec());
-        expected_uploads.insert("img-somehash-small.png".to_string(), b"small".to_vec());
-        expected_uploads.insert("img-somehash-medium.png".to_string(), b"medium".to_vec());
-        expected_uploads.insert("img-somehash-large.png".to_string(), b"large".to_vec());
-        expected_uploads.insert("img-somehash.png".to_string(), b"original".to_vec());
+        let expected_uploads = hashmap! {
+            "img-somehash-thumb.png".to_string() => b"thumb".to_vec(),
+            "img-somehash-small.png".to_string() => b"small".to_vec(),
+            "img-somehash-medium.png".to_string() => b"medium".to_vec(),
+            "img-somehash-large.png".to_string() => b"large".to_vec(),
+            "img-somehash.png".to_string() => b"original".to_vec(),
+        };
 
         let url = s3.upload_image(ImageFormat::PNG, b"".to_vec()).wait().unwrap();
         assert_eq!(url, "https://s3.amazonaws.com/test-bucket/img-somehash.png");

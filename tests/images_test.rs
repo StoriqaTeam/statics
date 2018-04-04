@@ -48,14 +48,14 @@ fn images_post() {
     let body = context.core.run(read_body(response.body())).unwrap();
     let url = serde_json::from_str::<UrlResponse>(&body).unwrap().url;
     let futures: Vec<_> = ["original", "thumb", "small", "medium", "large"]
-        .iter()
+        .into_iter()
         .map(|size| {
             fetch_image_from_s3_and_file(context, original_filename, &url, size).map(|(local, remote)| {
                 assert_eq!(local, remote);
             })
         })
         .collect();
-    let _ = context.core.run(future::join_all(futures));
+    context.core.run(future::join_all(futures)).unwrap();
 }
 
 fn fetch_image_from_s3_and_file(

@@ -26,6 +26,8 @@ extern crate image;
 extern crate jsonwebtoken;
 #[macro_use]
 extern crate log as log_crate;
+#[macro_use]
+extern crate maplit;
 extern crate mime;
 extern crate multipart;
 extern crate rand;
