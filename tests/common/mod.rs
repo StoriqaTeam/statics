@@ -25,11 +25,14 @@ pub fn setup() -> Context {
     let (tx, rx) = channel::<bool>();
     let mut rng = rand::thread_rng();
     let port = rng.gen_range(50000, 60000);
-    thread::spawn(move || {
-        let config = statics_lib::config::Config::new().expect("Can't load app config!");
-        statics_lib::start_server(config, Some(port.to_string()), move || {
-            let _ = tx.send(true);
-        });
+    thread::spawn({
+        let tx = tx.clone();
+        move || {
+            let config = statics_lib::config::Config::new().expect("Can't load app config!");
+            statics_lib::start_server(config, Some(port.to_string()), move || {
+                let _ = tx.send(true);
+            });
+        }
     });
     rx.recv().unwrap();
     let core = Core::new().expect("Unexpected error creating event loop core");
