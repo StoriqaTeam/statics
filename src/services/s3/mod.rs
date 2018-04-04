@@ -116,8 +116,8 @@ impl S3 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
     use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
 
     struct RandomMock {
         hash: String,
@@ -160,7 +160,7 @@ mod tests {
 
     #[derive(Default)]
     struct S3ClientMock {
-        pub uploads: Rc<RefCell<HashMap<String, Vec<u8>>>>,
+        pub uploads: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     }
 
     impl S3Client for S3ClientMock {
@@ -171,7 +171,7 @@ mod tests {
             _content_type: Option<String>,
             bytes: Vec<u8>,
         ) -> Box<Future<Item = (), Error = S3Error>> {
-            let mut uploads = self.uploads.borrow_mut();
+            let mut uploads = self.uploads.lock().unwrap();
             uploads.insert(key, bytes);
             Box::new(future::ok(()))
         }
@@ -195,6 +195,6 @@ mod tests {
 
         let url = s3.upload_image(ImageFormat::PNG, b"".to_vec()).wait().unwrap();
         assert_eq!(url, "https://s3.amazonaws.com/test-bucket/img-somehash.png");
-        assert_eq!(&*uploads.borrow(), &expected_uploads);
+        assert_eq!(&*uploads.lock().unwrap(), &expected_uploads);
     }
 }
