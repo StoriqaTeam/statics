@@ -12,9 +12,9 @@
 //! large - 640 pixels. Example: `https://s3.amazonaws.com/storiqa-dev/img-2IpSsAjuxB8C.png` is original image,
 //! `https://s3.amazonaws.com/storiqa-dev/img-2IpSsAjuxB8C-large.png` is large image.
 
-extern crate statics_lib;
+extern crate statics_lib as lib;
 
 fn main() {
-    let config = statics_lib::config::Config::new().expect("Can't load app config!");
-    statics_lib::start_server(config, None, || ());
+    let config = lib::config::Config::new().expect("Can't load app config!");
+    lib::start_server(config, None, || ());
 }
