@@ -1,11 +1,11 @@
 //! Client for AWS S3
 
+use futures::future::Future;
 use rusoto_core::request::HttpClient;
 use rusoto_s3::{PutObjectRequest, S3, S3Client as CrateS3Client};
-use futures::future::Future;
 
-use super::error::S3Error;
 use super::credentials::Credentials;
+use super::error::S3Error;
 
 pub trait S3Client {
     /// Uploads raw bytes to s3 with filename `key` and content-type (used for serving file from s3)

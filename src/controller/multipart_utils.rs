@@ -5,10 +5,10 @@
 //! an [async implementation](https://github.com/abonander/multipart-async), but
 //! it's in pre-alpha version.
 
-use multipart::server::HttpRequest;
 use hyper;
 use hyper::header::ContentType;
 use mime;
+use multipart::server::HttpRequest;
 use std::io::Cursor;
 
 /// Structure that complies with `multipart` crate HttpRequest
@@ -42,10 +42,7 @@ impl HttpRequest for MultipartRequest {
                 _ => return None,
             };
 
-            params
-                .filter(|kv| kv.0 == mime::BOUNDARY)
-                .next()
-                .map(|kv| kv.1.as_str())
+            params.filter(|kv| kv.0 == mime::BOUNDARY).next().map(|kv| kv.1.as_str())
         })
     }
     fn body(self) -> Self::Body {
@@ -55,5 +52,6 @@ impl HttpRequest for MultipartRequest {
 
 #[derive(Debug, Fail)]
 pub enum MultipartError {
-    #[fail(display = "Failed to parse multipart body: {}", _0)] Parse(String),
+    #[fail(display = "Failed to parse multipart body: {}", _0)]
+    Parse(String),
 }

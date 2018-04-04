@@ -1,6 +1,6 @@
+use base64::encode;
 use rand;
 use rand::Rng;
-use base64::encode;
 
 /// Lenght of the random hash in s3 filename in bytes
 static HASH_LEN_BYTES: u8 = 8;

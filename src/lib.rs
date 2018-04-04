@@ -13,9 +13,9 @@
 //! `https://s3.amazonaws.com/storiqa-dev/img-2IpSsAjuxB8C-large.png` is large image.
 
 extern crate base64;
+extern crate chrono;
 extern crate config as config_crate;
 extern crate env_logger;
-extern crate chrono;
 #[macro_use]
 extern crate failure;
 extern crate futures;
@@ -42,12 +42,12 @@ pub mod config;
 pub mod controller;
 pub mod services;
 
-use std::sync::Arc;
-use std::process;
 use std::env;
+use std::process;
+use std::sync::Arc;
 
-use futures::{Future, Stream};
 use futures::future;
+use futures::{Future, Stream};
 // use futures_cpupool::CpuPool;
 use hyper::server::Http;
 use tokio_core::reactor::Core;
@@ -55,11 +55,11 @@ use tokio_core::reactor::Core;
 use stq_http::client::Config as HttpConfig;
 use stq_http::controller::Application;
 
-use config::Config;
-use services::s3::S3;
-use log::{LogLevelFilter, LogRecord};
 use chrono::Utc;
+use config::Config;
 use env_logger::LogBuilder;
+use log::{LogLevelFilter, LogRecord};
+use services::s3::S3;
 
 /// Starts new web service from provided `Config`
 ///
@@ -68,12 +68,7 @@ use env_logger::LogBuilder;
 pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>, callback: F) {
     let formatter = |record: &LogRecord| {
         let now = Utc::now();
-        format!(
-            "{} - {} - {}",
-            now.to_rfc3339(),
-            record.level(),
-            record.args()
-        )
+        format!("{} - {} - {}", now.to_rfc3339(), record.level(), record.args())
     };
 
     let mut builder = LogBuilder::new();
@@ -98,14 +93,7 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>,
     let client_stream = client.stream();
     handle.spawn(client_stream.for_each(|_| Ok(())));
 
-    let s3 = Arc::new(
-        S3::create(
-            &config.s3.key,
-            &config.s3.secret,
-            &config.s3.bucket,
-            &handle,
-        ).unwrap(),
-    );
+    let s3 = Arc::new(S3::create(&config.s3.key, &config.s3.secret, &config.s3.bucket, &handle).unwrap());
 
     let address = {
         let port = port.as_ref().unwrap_or(&config.server.port);
@@ -114,11 +102,7 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>,
 
     let serve = Http::new()
         .serve_addr_handle(&address, &handle, move || {
-            let controller = Box::new(controller::ControllerImpl::new(
-                config.clone(),
-                client_handle.clone(),
-                s3.clone(),
-            ));
+            let controller = Box::new(controller::ControllerImpl::new(config.clone(), client_handle.clone(), s3.clone()));
 
             // Prepare application
             let app = Application { controller };
@@ -134,10 +118,7 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>,
     handle.spawn(
         serve
             .for_each(move |conn| {
-                handle_arc2.spawn(
-                    conn.map(|_| ())
-                        .map_err(|why| error!("Server Error: {:?}", why)),
-                );
+                handle_arc2.spawn(conn.map(|_| ()).map_err(|why| error!("Server Error: {:?}", why)));
                 Ok(())
             })
             .map_err(|_| ()),
