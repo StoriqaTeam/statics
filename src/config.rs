@@ -1,7 +1,7 @@
 //! Config module contains the top-level config for the app.
 
-use std::env;
 use config_crate::{Config as RawConfig, ConfigError, Environment, File};
+use std::env;
 
 /// Global app config
 #[derive(Debug, Deserialize, Clone)]

@@ -1,8 +1,8 @@
 //! Credentials trait implementations for `rusoto` crate
 //! [github](https://rusoto.github.io/rusoto/rusoto_core/trait.ProvideAwsCredentials.html)
 
-use rusoto_core::{AwsCredentials, CredentialsError, ProvideAwsCredentials};
 use futures::future::{ok, FutureResult};
+use rusoto_core::{AwsCredentials, CredentialsError, ProvideAwsCredentials};
 
 pub struct Credentials {
     key: String,
@@ -19,11 +19,6 @@ impl ProvideAwsCredentials for Credentials {
     type Future = FutureResult<AwsCredentials, CredentialsError>;
 
     fn credentials(&self) -> Self::Future {
-        ok(AwsCredentials::new(
-            self.key.clone(),
-            self.secret.clone(),
-            None,
-            None,
-        ))
+        ok(AwsCredentials::new(self.key.clone(), self.secret.clone(), None, None))
     }
 }

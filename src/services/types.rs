@@ -1,9 +1,9 @@
 //! Type aliases for service module
 
-use std::fmt::{Display, Error, Formatter};
-use std::str::FromStr;
 use futures::future::Future;
 use image::ImageFormat as CrateImageFormat;
+use std::fmt::{Display, Error, Formatter};
+use std::str::FromStr;
 
 use super::error::ServiceError;
 
@@ -29,10 +29,7 @@ impl FromStr for ImageFormat {
         match s {
             "png" => Ok(ImageFormat::PNG),
             "jpg" | "jpeg" => Ok(ImageFormat::JPG),
-            format => Err(ServiceError::Image(format!(
-                "Invalid image format: {}",
-                format
-            ))),
+            format => Err(ServiceError::Image(format!("Invalid image format: {}", format))),
         }
     }
 }

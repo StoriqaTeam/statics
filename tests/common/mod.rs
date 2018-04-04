@@ -1,17 +1,17 @@
-extern crate rand;
 extern crate hyper_tls;
+extern crate rand;
 
 use statics_lib;
 
-use std::thread;
-use std::fs::File;
-use std::io::Read;
+use self::hyper_tls::HttpsConnector;
+use self::rand::Rng;
 use hyper::Client;
 use hyper::client::HttpConnector;
-use tokio_core::reactor::Core;
+use std::fs::File;
+use std::io::Read;
 use std::sync::mpsc::channel;
-use self::rand::Rng;
-use self::hyper_tls::HttpsConnector;
+use std::thread;
+use tokio_core::reactor::Core;
 
 type HttpClient = Client<HttpsConnector<HttpConnector>>;
 
@@ -27,7 +27,9 @@ pub fn setup() -> Context {
     let port = rng.gen_range(50000, 60000);
     thread::spawn(move || {
         let config = statics_lib::config::Config::new().expect("Can't load app config!");
-        statics_lib::start_server(config, Some(port.to_string()), move || { let _ = tx.send(true); });
+        statics_lib::start_server(config, Some(port.to_string()), move || {
+            let _ = tx.send(true);
+        });
     });
     rx.recv().unwrap();
     let core = Core::new().expect("Unexpected error creating event loop core");

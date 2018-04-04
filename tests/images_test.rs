@@ -1,25 +1,25 @@
 extern crate futures;
 extern crate hyper;
-extern crate statics_lib;
-extern crate stq_http;
-extern crate tokio_core;
 extern crate mime;
 extern crate serde;
 extern crate serde_json;
+extern crate statics_lib;
+extern crate stq_http;
+extern crate tokio_core;
 #[macro_use]
 extern crate serde_derive;
 
 pub mod common;
 
+use common::Context;
+use futures::Stream;
+use futures::future;
 use futures::future::Future;
-use hyper::{Uri, Request, Method};
+use hyper::StatusCode;
 use hyper::header::{ContentLength, ContentType};
+use hyper::{Method, Request, Uri};
 use std::str::FromStr;
 use stq_http::request_util::read_body;
-use common::Context;
-use futures::future;
-use futures::Stream;
-use hyper::{StatusCode};
 
 #[derive(Serialize, Deserialize)]
 struct UrlResponse {
@@ -41,46 +41,48 @@ fn images_post() {
     req.headers_mut().set(ContentType(mime));
     req.headers_mut().set(ContentLength(body.len() as u64));
     req.set_body(body);
-    let response = context
-        .core
-        .run(
-            context
-                .client
-                .request(req)
-        )
-        .unwrap();
+    let response = context.core.run(context.client.request(req)).unwrap();
 
     assert_eq!(response.status(), StatusCode::Ok);
 
     let body = context.core.run(read_body(response.body())).unwrap();
     let url = serde_json::from_str::<UrlResponse>(&body).unwrap().url;
-    let futures: Vec<_> = ["original", "thumb", "small", "medium", "large"].iter().map(|size| {
-            fetch_image_from_s3_and_file(context, original_filename, &url, size)
-                .map(|(local, remote)| {
-                    assert_eq!(local, remote);
-                })
-    }).collect();
+    let futures: Vec<_> = ["original", "thumb", "small", "medium", "large"]
+        .iter()
+        .map(|size| {
+            fetch_image_from_s3_and_file(context, original_filename, &url, size).map(|(local, remote)| {
+                assert_eq!(local, remote);
+            })
+        })
+        .collect();
     let _ = context.core.run(future::join_all(futures));
 }
 
-fn fetch_image_from_s3_and_file(context: &mut Context, filename: &str, url: &str, size: &str) -> Box<Future<Item = (Vec<u8>, Vec<u8>), Error = hyper::Error>> {
-        let filename = add_size_to_url(filename, size);
-        let url = add_size_to_url(url, size);
-        let uri = Uri::from_str(&url).unwrap();
-        Box::new(
-            context
-                .client
-                .get(uri)
-                .and_then(|resp| read_bytes(resp.body()))
-                .map(move |remote_bytes| {
-                    let local_bytes = common::read_static_file(&filename);
-                    (remote_bytes, local_bytes)
-                })
-        )
+fn fetch_image_from_s3_and_file(
+    context: &mut Context,
+    filename: &str,
+    url: &str,
+    size: &str,
+) -> Box<Future<Item = (Vec<u8>, Vec<u8>), Error = hyper::Error>> {
+    let filename = add_size_to_url(filename, size);
+    let url = add_size_to_url(url, size);
+    let uri = Uri::from_str(&url).unwrap();
+    Box::new(
+        context
+            .client
+            .get(uri)
+            .and_then(|resp| read_bytes(resp.body()))
+            .map(move |remote_bytes| {
+                let local_bytes = common::read_static_file(&filename);
+                (remote_bytes, local_bytes)
+            }),
+    )
 }
 
 fn add_size_to_url(url: &str, size: &str) -> String {
-    if size == "original" { return url.to_string() };
+    if size == "original" {
+        return url.to_string();
+    };
     url.replace(".png", &format!("-{}.png", size))
 }
 

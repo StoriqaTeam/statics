@@ -1,16 +1,20 @@
 //! Error for S3 service
 
-use futures::future::err;
 use futures::Future;
+use futures::future::err;
 use rusoto_s3::PutObjectError;
 
 /// Error for S3 service
 #[derive(Debug, Fail)]
 pub enum S3Error {
-    #[fail(display = "Access Error: {}", _0)] Access(String),
-    #[fail(display = "Network Error: {}", _0)] Network(String),
-    #[fail(display = "Image Error: {}", _0)] Image(String),
-    #[fail(display = "Unknown error: {}", _0)] Unknown(String),
+    #[fail(display = "Access Error: {}", _0)]
+    Access(String),
+    #[fail(display = "Network Error: {}", _0)]
+    Network(String),
+    #[fail(display = "Image Error: {}", _0)]
+    Image(String),
+    #[fail(display = "Unknown error: {}", _0)]
+    Unknown(String),
 }
 
 impl<T: 'static> Into<Box<Future<Item = T, Error = S3Error>>> for S3Error {
