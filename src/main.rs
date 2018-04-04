@@ -15,6 +15,9 @@
 extern crate statics_lib as lib;
 
 fn main() {
+    // Prepare logger
+    lib::log::log_environment().init();
+
     let config = lib::config::Config::new().expect("Can't load app config!");
     lib::start_server(config, None, || ());
 }

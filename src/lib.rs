@@ -25,7 +25,7 @@ extern crate hyper_tls;
 extern crate image;
 extern crate jsonwebtoken;
 #[macro_use]
-extern crate log;
+extern crate log as log_crate;
 extern crate mime;
 extern crate multipart;
 extern crate rand;
@@ -40,9 +40,9 @@ extern crate tokio_core;
 
 pub mod config;
 pub mod controller;
+pub mod log;
 pub mod services;
 
-use std::env;
 use std::process;
 use std::sync::Arc;
 
@@ -55,10 +55,7 @@ use tokio_core::reactor::Core;
 use stq_http::client::Config as HttpConfig;
 use stq_http::controller::Application;
 
-use chrono::Utc;
 use config::Config;
-use env_logger::LogBuilder;
-use log::{LogLevelFilter, LogRecord};
 use services::s3::S3;
 
 /// Starts new web service from provided `Config`
@@ -66,20 +63,6 @@ use services::s3::S3;
 /// * `config` - application config
 /// * `callback` - callback when server is started
 pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>, callback: F) {
-    let formatter = |record: &LogRecord| {
-        let now = Utc::now();
-        format!("{} - {} - {}", now.to_rfc3339(), record.level(), record.args())
-    };
-
-    let mut builder = LogBuilder::new();
-    builder.format(formatter).filter(None, LogLevelFilter::Info);
-
-    if env::var("RUST_LOG").is_ok() {
-        builder.parse(&env::var("RUST_LOG").unwrap());
-    }
-    // Prepare logger
-    builder.init().unwrap();
-
     // Prepare reactor
     let mut core = Core::new().expect("Unexpected error creating event loop core");
     let handle = Arc::new(core.handle());
@@ -114,15 +97,15 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>,
             process::exit(1);
         });
 
-    let handle_arc2 = handle.clone();
-    handle.spawn(
+    handle.spawn({
+        let handle = handle.clone();
         serve
             .for_each(move |conn| {
-                handle_arc2.spawn(conn.map(|_| ()).map_err(|why| error!("Server Error: {:?}", why)));
+                handle.spawn(conn.map(|_| ()).map_err(|why| error!("Server Error: {:?}", why)));
                 Ok(())
             })
-            .map_err(|_| ()),
-    );
+            .map_err(|_| ())
+    });
 
     info!("Listening on http://{}", address);
     handle.spawn_fn(move || {
