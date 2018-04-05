@@ -3,7 +3,7 @@ extern crate hyper;
 extern crate mime;
 extern crate serde;
 extern crate serde_json;
-extern crate statics_lib;
+extern crate statics_lib as lib;
 extern crate stq_http;
 extern crate tokio_core;
 #[macro_use]

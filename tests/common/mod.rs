@@ -1,7 +1,7 @@
 extern crate hyper_tls;
 extern crate rand;
 
-use statics_lib;
+use lib;
 
 use self::hyper_tls::HttpsConnector;
 use self::rand::Rng;
@@ -28,8 +28,8 @@ pub fn setup() -> Context {
     thread::spawn({
         let tx = tx.clone();
         move || {
-            let config = statics_lib::config::Config::new().expect("Can't load app config!");
-            statics_lib::start_server(config, Some(port.to_string()), move || {
+            let config = lib::config::Config::new().expect("Can't load app config!");
+            lib::start_server(config, Some(port.to_string()), move || {
                 let _ = tx.send(true);
             });
         }
