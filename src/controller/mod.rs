@@ -75,10 +75,13 @@ impl Controller for ControllerImpl {
                 let method = req.method().clone();
                 let headers = req.headers().clone();
 
+                debug!("Received image upload request");
+
                 Box::new(
                     read_bytes(req.body())
                         .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
                         .and_then(move |bytes| {
+                            debug!("Read payload bytes");
                             let multipart_wrapper = multipart_utils::MultipartRequest::new(method, headers, bytes);
                             let multipart_entity = match Multipart::from_request(multipart_wrapper) {
                                 Err(_) => {
