@@ -16,7 +16,7 @@ use futures::Stream;
 use futures::future;
 use futures::future::Future;
 use hyper::StatusCode;
-use hyper::header::{ContentLength, ContentType};
+use hyper::header::{Authorization, Bearer, ContentLength, ContentType};
 use hyper::{Method, Request, Uri};
 use std::str::FromStr;
 use stq_http::request_util::read_body;
@@ -31,6 +31,7 @@ struct UploadTester {
     boundary: Option<String>,
     content_length: Option<u64>,
     content_type: Option<String>,
+    jwt_token: Option<String>,
     response_status: Option<StatusCode>,
 }
 
@@ -51,6 +52,10 @@ impl UploadTester {
             .unwrap();
         let url = Uri::from_str(&format!("{}/images", context.base_url)).unwrap();
         let mut req = Request::new(Method::Post, url);
+        req.headers_mut().set(Authorization::<Bearer>(Bearer {
+            token: self.jwt_token
+                .unwrap_or("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozfQ.LCzE3BxXwYHG7ZKyTTMDQZG_jir6ZBgn_TcrloGFDeo".into()),
+        }));
         req.headers_mut().set(ContentType(mime));
         req.headers_mut()
             .set(ContentLength(self.content_length.unwrap_or(body.len() as u64)));
@@ -78,6 +83,15 @@ impl UploadTester {
 #[test]
 fn images_post() {
     UploadTester { ..Default::default() }.test()
+}
+
+#[test]
+fn images_post_invalid_token() {
+    UploadTester {
+        jwt_token: Some("hello".into()),
+        response_status: Some(StatusCode::BadRequest),
+        ..Default::default()
+    }.test()
 }
 
 #[test]
