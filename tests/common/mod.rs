@@ -22,6 +22,7 @@ pub struct Context {
 }
 
 pub fn setup() -> Context {
+    let _ = lib::log::log_environment().try_init();
     let (tx, rx) = channel::<bool>();
     let mut rng = rand::thread_rng();
     let port = rng.gen_range(50000, 60000);
