@@ -9,11 +9,25 @@ use hyper;
 use hyper::header::ContentType;
 use mime;
 use multipart::server::HttpRequest;
-use std::io::Cursor;
+use std::io::{Cursor, Error as IoError, ErrorKind as IoErrorKind, Read};
+
+pub struct EofCursor(Cursor<Vec<u8>>);
+
+impl Read for EofCursor {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, IoError> {
+        self.0.read(buf).and_then(|n| {
+            if n == 0 {
+                Err(IoError::new(IoErrorKind::UnexpectedEof, "Unexpected EOF"))
+            } else {
+                Ok(n)
+            }
+        })
+    }
+}
 
 /// Structure that complies with `multipart` crate HttpRequest
 pub struct MultipartRequest {
-    body: Cursor<Vec<u8>>,
+    body: EofCursor,
     headers: hyper::Headers,
     method: hyper::Method,
 }
@@ -23,13 +37,13 @@ impl MultipartRequest {
         Self {
             method,
             headers,
-            body: Cursor::new(body),
+            body: EofCursor(Cursor::new(body)),
         }
     }
 }
 
 impl HttpRequest for MultipartRequest {
-    type Body = Cursor<Vec<u8>>;
+    type Body = EofCursor;
     fn multipart_boundary(&self) -> Option<&str> {
         if self.method != hyper::Method::Post {
             return None;
