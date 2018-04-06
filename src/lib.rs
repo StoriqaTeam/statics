@@ -26,6 +26,8 @@ extern crate image;
 extern crate jsonwebtoken;
 #[macro_use]
 extern crate log as log_crate;
+#[macro_use]
+extern crate maplit;
 extern crate mime;
 extern crate multipart;
 extern crate rand;
@@ -49,6 +51,7 @@ use std::sync::Arc;
 use futures::future;
 use futures::{Future, Stream};
 // use futures_cpupool::CpuPool;
+use hyper::header::AccessControlAllowOrigin;
 use hyper::server::Http;
 use tokio_core::reactor::Core;
 
@@ -85,10 +88,10 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>,
 
     let serve = Http::new()
         .serve_addr_handle(&address, &handle, move || {
-            let controller = Box::new(controller::ControllerImpl::new(config.clone(), client_handle.clone(), s3.clone()));
+            let controller = controller::ControllerImpl::new(config.clone(), client_handle.clone(), s3.clone());
 
             // Prepare application
-            let app = Application { controller };
+            let app = Application::new(controller).with_acao(AccessControlAllowOrigin::Value(config.server.acao.clone()));
 
             Ok(app)
         })

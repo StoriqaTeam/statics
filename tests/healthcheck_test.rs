@@ -1,6 +1,6 @@
 extern crate futures;
 extern crate hyper;
-extern crate statics_lib;
+extern crate statics_lib as lib;
 extern crate stq_http;
 extern crate tokio_core;
 

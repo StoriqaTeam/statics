@@ -3,7 +3,7 @@ extern crate hyper;
 extern crate mime;
 extern crate serde;
 extern crate serde_json;
-extern crate statics_lib;
+extern crate statics_lib as lib;
 extern crate stq_http;
 extern crate tokio_core;
 #[macro_use]
@@ -26,36 +26,76 @@ struct UrlResponse {
     url: String,
 }
 
+#[derive(Default)]
+struct UploadTester {
+    boundary: Option<String>,
+    content_length: Option<u64>,
+    content_type: Option<String>,
+    response_status: Option<StatusCode>,
+}
+
+impl UploadTester {
+    fn test(self) {
+        let context = &mut common::setup();
+        let original_filename = "image-328x228.png";
+        let original_bytes = common::read_static_file(original_filename);
+        let mut body = b"-----------------------------2132006148186267924133397521\r\nContent-Disposition: form-data; name=\"file\"; filename=\"image-328x228.png\nContent-Type: ".to_vec();
+        body.extend(self.content_type.unwrap_or("image/png".to_string()).into_bytes().into_iter());
+        body.extend(b"\r\n\r\n".into_iter());
+        body.extend(original_bytes);
+        body.extend(b"\r\n-----------------------------2132006148186267924133397521--\r\n".into_iter());
+        let boundary = self.boundary
+            .unwrap_or("---------------------------2132006148186267924133397521".to_string());
+        let mime = format!("multipart/form-data; boundary={}", &boundary)
+            .parse::<mime::Mime>()
+            .unwrap();
+        let url = Uri::from_str(&format!("{}/images", context.base_url)).unwrap();
+        let mut req = Request::new(Method::Post, url);
+        req.headers_mut().set(ContentType(mime));
+        req.headers_mut()
+            .set(ContentLength(self.content_length.unwrap_or(body.len() as u64)));
+        req.set_body(body);
+        let response = context.core.run(context.client.request(req)).unwrap();
+
+        assert_eq!(response.status(), self.response_status.unwrap_or(StatusCode::Ok));
+
+        if response.status() == StatusCode::Ok {
+            let body = context.core.run(read_body(response.body())).unwrap();
+            let url = serde_json::from_str::<UrlResponse>(&body).unwrap().url;
+            let futures: Vec<_> = ["original", "thumb", "small", "medium", "large"]
+                .into_iter()
+                .map(|size| {
+                    fetch_image_from_s3_and_file(context, original_filename, &url, size).map(|(local, remote)| {
+                        assert_eq!(local, remote);
+                    })
+                })
+                .collect();
+            context.core.run(future::join_all(futures)).unwrap();
+        }
+    }
+}
+
 #[test]
 fn images_post() {
-    let context = &mut common::setup();
-    let original_filename = "image-328x228.png";
-    let original_bytes = common::read_static_file(original_filename);
-    let mut body = b"-----------------------------2132006148186267924133397521\r\nContent-Disposition: form-data; name=\"file\"; filename=\"image-328x228.png\nContent-Type: image/png\r\n\r\n".to_vec();
-    body.extend(original_bytes);
-    body.extend(b"\r\n-----------------------------2132006148186267924133397521--\r\n".into_iter());
-    let boundary = "---------------------------2132006148186267924133397521";
-    let mime = format!("multipart/form-data; boundary={}", boundary).parse::<mime::Mime>().unwrap();
-    let url = Uri::from_str(&format!("{}/images", context.base_url)).unwrap();
-    let mut req = Request::new(Method::Post, url);
-    req.headers_mut().set(ContentType(mime));
-    req.headers_mut().set(ContentLength(body.len() as u64));
-    req.set_body(body);
-    let response = context.core.run(context.client.request(req)).unwrap();
+    UploadTester { ..Default::default() }.test()
+}
 
-    assert_eq!(response.status(), StatusCode::Ok);
+#[test]
+fn images_post_invalid_boundary() {
+    UploadTester {
+        boundary: Some("abeceda".into()),
+        response_status: Some(StatusCode::UnprocessableEntity),
+        ..Default::default()
+    }.test()
+}
 
-    let body = context.core.run(read_body(response.body())).unwrap();
-    let url = serde_json::from_str::<UrlResponse>(&body).unwrap().url;
-    let futures: Vec<_> = ["original", "thumb", "small", "medium", "large"]
-        .iter()
-        .map(|size| {
-            fetch_image_from_s3_and_file(context, original_filename, &url, size).map(|(local, remote)| {
-                assert_eq!(local, remote);
-            })
-        })
-        .collect();
-    let _ = context.core.run(future::join_all(futures));
+#[test]
+fn images_post_invalid_content_type() {
+    UploadTester {
+        content_type: Some("image/svg".into()),
+        response_status: Some(StatusCode::UnprocessableEntity),
+        ..Default::default()
+    }.test()
 }
 
 fn fetch_image_from_s3_and_file(
