@@ -12,11 +12,17 @@ pub struct Config {
     pub jwt: JWT,
 }
 
+fn default_acao() -> String {
+    "*".into()
+}
+
 /// Common server settings
 #[derive(Debug, Deserialize, Clone)]
 pub struct Server {
     pub host: String,
     pub port: String,
+    #[serde(default = "default_acao")]
+    pub acao: String,
 }
 
 /// AWS S3 credentials

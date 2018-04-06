@@ -51,6 +51,7 @@ use std::sync::Arc;
 use futures::future;
 use futures::{Future, Stream};
 // use futures_cpupool::CpuPool;
+use hyper::header::AccessControlAllowOrigin;
 use hyper::server::Http;
 use tokio_core::reactor::Core;
 
@@ -90,7 +91,7 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>,
             let controller = controller::ControllerImpl::new(config.clone(), client_handle.clone(), s3.clone());
 
             // Prepare application
-            let app = Application::new(controller);
+            let app = Application::new(controller).with_acao(AccessControlAllowOrigin::Value(config.server.acao.clone()));
 
             Ok(app)
         })
