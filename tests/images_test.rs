@@ -30,6 +30,7 @@ struct UrlResponse {
 struct UploadTester {
     boundary: Option<String>,
     content_length: Option<u64>,
+    content_type: Option<String>,
     response_status: Option<StatusCode>,
 }
 
@@ -38,7 +39,9 @@ impl UploadTester {
         let context = &mut common::setup();
         let original_filename = "image-328x228.png";
         let original_bytes = common::read_static_file(original_filename);
-        let mut body = b"-----------------------------2132006148186267924133397521\r\nContent-Disposition: form-data; name=\"file\"; filename=\"image-328x228.png\nContent-Type: image/png\r\n\r\n".to_vec();
+        let mut body = b"-----------------------------2132006148186267924133397521\r\nContent-Disposition: form-data; name=\"file\"; filename=\"image-328x228.png\nContent-Type: ".to_vec();
+        body.extend(self.content_type.unwrap_or("image/png".to_string()).into_bytes().into_iter());
+        body.extend(b"\r\n\r\n".into_iter());
         body.extend(original_bytes);
         body.extend(b"\r\n-----------------------------2132006148186267924133397521--\r\n".into_iter());
         let boundary = self.boundary
@@ -81,6 +84,15 @@ fn images_post() {
 fn images_post_invalid_boundary() {
     UploadTester {
         boundary: Some("abeceda".into()),
+        response_status: Some(StatusCode::UnprocessableEntity),
+        ..Default::default()
+    }.test()
+}
+
+#[test]
+fn images_post_invalid_content_type() {
+    UploadTester {
+        content_type: Some("image/svg".into()),
         response_status: Some(StatusCode::UnprocessableEntity),
         ..Default::default()
     }.test()
