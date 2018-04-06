@@ -87,10 +87,10 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>,
 
     let serve = Http::new()
         .serve_addr_handle(&address, &handle, move || {
-            let controller = Box::new(controller::ControllerImpl::new(config.clone(), client_handle.clone(), s3.clone()));
+            let controller = controller::ControllerImpl::new(config.clone(), client_handle.clone(), s3.clone());
 
             // Prepare application
-            let app = Application { controller };
+            let app = Application::new(controller);
 
             Ok(app)
         })
