@@ -12,7 +12,7 @@ pub enum ServiceError {
     Image(String),
     #[fail(display = "Http client error: {}", _0)]
     HttpClient(String),
-    #[fail(display = "Unauthorized")]
+    #[fail(display = "Unauthorized: {}", _0)]
     Unauthorized(String),
     #[fail(display = "Unknown error: {}", _0)]
     Unknown(String),
