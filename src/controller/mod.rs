@@ -12,11 +12,13 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use futures::future;
-use futures::future::Future;
-use futures::stream::Stream;
+use futures::prelude::*;
 use hyper;
+use hyper::Headers;
+use hyper::header::{Authorization, Bearer};
 use hyper::server::Request;
 use hyper::{Get, Post};
+use jsonwebtoken::{decode, Validation};
 use multipart::server::Multipart;
 // use hyper::header::Authorization;
 
@@ -29,9 +31,31 @@ use stq_router::RouteParser;
 
 use self::routes::Route;
 use config::Config;
+use services::error::ServiceError;
 use services::s3::S3;
 use services::system::{SystemService, SystemServiceImpl};
 use services::types::ImageFormat;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct JWTPayload {
+    pub user_id: i32,
+}
+
+pub fn verify_token(jwt_secret_key: String, headers: &Headers) -> Box<Future<Item = JWTPayload, Error = ControllerError>> {
+    Box::new(
+        future::result(
+            headers
+                .get::<Authorization<Bearer>>()
+                .map(|auth| auth.clone())
+                .ok_or_else(|| ControllerError::BadRequest(ServiceError::Unauthorized("Missing token".into()).into())),
+        ).and_then(move |auth| {
+            let token = auth.0.token.as_ref();
+            decode::<JWTPayload>(token, jwt_secret_key.as_ref(), &Validation::default())
+                .map_err(|e| ControllerError::BadRequest(ServiceError::Unauthorized(format!("Failed to parse JWT token: {}", e)).into()))
+        })
+            .map(|t| t.claims),
+    )
+}
 
 /// Controller handles route parsing and calling `Service` layer
 pub struct ControllerImpl {
@@ -78,8 +102,13 @@ impl Controller for ControllerImpl {
                 debug!("Received image upload request");
 
                 Box::new(
-                    read_bytes(req.body())
-                        .map_err(|e| ControllerError::UnprocessableEntity(e.into()))
+                    future::ok(())
+                        .and_then({
+                            let headers = headers.clone();
+                            let secret_key = self.config.jwt.secret_key.clone();
+                            move |_| verify_token(secret_key, &headers)
+                        })
+                        .and_then(|_user_id| read_bytes(req.body()).map_err(|e| ControllerError::UnprocessableEntity(e.into())))
                         .and_then(move |bytes| {
                             debug!("Read payload bytes");
                             let multipart_wrapper = multipart_utils::MultipartRequest::new(method, headers, bytes);
