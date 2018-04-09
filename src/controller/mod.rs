@@ -148,7 +148,7 @@ impl Controller for ControllerImpl {
                             let _ = field.data.read_to_end(&mut data);
                             let result: ControllerFuture = Box::new(
                                 s3.upload_image(format, data)
-                                    .map(|name| format!("{{\"url\": \"{}\"}}", name))
+                                    .map(|name| json!({"url": name}).to_string())
                                     .map_err(|e| ControllerError::UnprocessableEntity(e.into())),
                             );
                             result
