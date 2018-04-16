@@ -17,7 +17,7 @@ RUN apt-get update \
   && apt-get clean -y \
   && rm -rf /var/lib/apt/lists/
 
-COPY statics /app
+COPY target/release/statics /app
 COPY diesel /usr/local/cargo/bin/diesel
 COPY config /app/config
 COPY migrations /app/migrations
