@@ -7,26 +7,25 @@ pub mod multipart_utils;
 pub mod routes;
 pub mod utils;
 
-use std::io::Read;
-use std::str::FromStr;
-use std::sync::Arc;
-
 use futures::future;
 use futures::prelude::*;
 use hyper;
-use hyper::Headers;
 use hyper::header::{Authorization, Bearer};
 use hyper::server::Request;
+use hyper::Headers;
 use hyper::{Get, Post};
 use jsonwebtoken::{decode, Validation};
 use multipart::server::Multipart;
+use std::io::Read;
+use std::str::FromStr;
+use std::sync::Arc;
 // use hyper::header::Authorization;
 
 use stq_http::client::ClientHandle;
 use stq_http::controller::Controller;
 use stq_http::errors::ControllerError;
-use stq_http::request_util::ControllerFuture;
 use stq_http::request_util::serialize_future;
+use stq_http::request_util::ControllerFuture;
 use stq_router::RouteParser;
 
 use self::routes::Route;
@@ -148,7 +147,7 @@ impl Controller for ControllerImpl {
                             let _ = field.data.read_to_end(&mut data);
                             let result: ControllerFuture = Box::new(
                                 s3.upload_image(format, data)
-                                    .map(|name| json!({"url": name}).to_string())
+                                    .map(|name| json!({ "url": name }).to_string())
                                     .map_err(|e| ControllerError::UnprocessableEntity(e.into())),
                             );
                             result

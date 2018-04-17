@@ -1,7 +1,7 @@
 //! Error for S3 service
 
-use futures::Future;
 use futures::future::err;
+use futures::Future;
 use rusoto_s3::PutObjectError;
 
 /// Error for S3 service
