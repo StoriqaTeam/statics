@@ -7,6 +7,8 @@ pub mod multipart_utils;
 pub mod routes;
 pub mod utils;
 
+use chrono::prelude::*;
+use chrono::Duration;
 use futures::future;
 use futures::prelude::*;
 use hyper;
@@ -38,6 +40,7 @@ use services::types::ImageFormat;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct JWTPayload {
     pub user_id: i32,
+    pub exp: i64,
 }
 
 pub fn verify_token(jwt_secret_key: String, headers: &Headers) -> Box<Future<Item = JWTPayload, Error = ControllerError>> {
@@ -106,6 +109,16 @@ impl Controller for ControllerImpl {
                             let headers = headers.clone();
                             let secret_key = self.config.jwt.secret_key.clone();
                             move |_| verify_token(secret_key, &headers)
+                        })
+                        .and_then(|token| {
+                            let token_time = NaiveDateTime::from_timestamp(token.exp, 0);
+                            let current_time = Utc::now().naive_utc();
+
+                            if token_time + Duration::hours(24) < current_time {
+                                future::err(ControllerError::InternalServerError(format_err!("Token has expired")))
+                            } else {
+                                future::ok(token)
+                            }
                         })
                         .and_then(|_user_id| read_bytes(req.body()).map_err(|e| ControllerError::UnprocessableEntity(e.into())))
                         .and_then(move |bytes| {

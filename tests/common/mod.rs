@@ -17,6 +17,7 @@ type HttpClient = Client<HttpsConnector<HttpConnector>>;
 
 pub struct Context {
     pub client: HttpClient,
+    pub config: lib::config::Config,
     pub base_url: String,
     pub core: Core,
 }
@@ -26,10 +27,11 @@ pub fn setup() -> Context {
     let (tx, rx) = channel::<bool>();
     let mut rng = rand::thread_rng();
     let port = rng.gen_range(50000, 60000);
+    let config = lib::config::Config::new().expect("Can't load app config!");
     thread::spawn({
+        let config = config.clone();
         let tx = tx.clone();
         move || {
-            let config = lib::config::Config::new().expect("Can't load app config!");
             lib::start_server(config, Some(port.to_string()), move || {
                 let _ = tx.send(true);
             });
@@ -42,6 +44,7 @@ pub fn setup() -> Context {
         .build(&core.handle());
     Context {
         client,
+        config,
         base_url: format!("http://localhost:{}", port),
         core,
     }

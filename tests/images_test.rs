@@ -1,5 +1,7 @@
+extern crate chrono;
 extern crate futures;
 extern crate hyper;
+extern crate jsonwebtoken;
 extern crate mime;
 extern crate serde;
 extern crate serde_json;
@@ -11,6 +13,7 @@ extern crate serde_derive;
 
 pub mod common;
 
+use chrono::prelude::*;
 use common::Context;
 use futures::future;
 use futures::future::Future;
@@ -18,6 +21,7 @@ use futures::Stream;
 use hyper::header::{Authorization, Bearer, ContentLength, ContentType};
 use hyper::StatusCode;
 use hyper::{Method, Request, Uri};
+use jsonwebtoken::{encode, Header};
 use std::str::FromStr;
 use stq_http::request_util::read_body;
 
@@ -53,8 +57,16 @@ impl UploadTester {
         let url = Uri::from_str(&format!("{}/images", context.base_url)).unwrap();
         let mut req = Request::new(Method::Post, url);
         req.headers_mut().set(Authorization::<Bearer>(Bearer {
-            token: self.jwt_token
-                .unwrap_or("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozfQ.LCzE3BxXwYHG7ZKyTTMDQZG_jir6ZBgn_TcrloGFDeo".into()),
+            token: self.jwt_token.unwrap_or(
+                encode(
+                    &Header::default(),
+                    &lib::controller::JWTPayload {
+                        user_id: 12345,
+                        exp: Utc::now().timestamp(),
+                    },
+                    context.config.jwt.secret_key.as_ref(),
+                ).unwrap(),
+            ),
         }));
         req.headers_mut().set(ContentType(mime));
         req.headers_mut()
