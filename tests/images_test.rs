@@ -12,11 +12,11 @@ extern crate serde_derive;
 pub mod common;
 
 use common::Context;
-use futures::Stream;
 use futures::future;
 use futures::future::Future;
-use hyper::StatusCode;
+use futures::Stream;
 use hyper::header::{Authorization, Bearer, ContentLength, ContentType};
+use hyper::StatusCode;
 use hyper::{Method, Request, Uri};
 use std::str::FromStr;
 use stq_http::request_util::read_body;

@@ -5,8 +5,8 @@ use lib;
 
 use self::hyper_tls::HttpsConnector;
 use self::rand::Rng;
-use hyper::Client;
 use hyper::client::HttpConnector;
+use hyper::Client;
 use std::fs::File;
 use std::io::Read;
 use std::sync::mpsc::channel;
