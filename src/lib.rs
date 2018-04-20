@@ -47,6 +47,8 @@ pub mod controller;
 pub mod log;
 pub mod services;
 
+use std::fs::File;
+use std::io::prelude::*;
 use std::process;
 use std::sync::Arc;
 
@@ -72,6 +74,11 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>,
     let mut core = Core::new().expect("Unexpected error creating event loop core");
     let handle = Arc::new(core.handle());
 
+    debug!("Reading public key file {}", &config.jwt.public_key_path);
+    let mut f = File::open(config.jwt.public_key_path.clone()).unwrap();
+    let mut jwt_public_key: Vec<u8> = Vec::new();
+    f.read_to_end(&mut jwt_public_key).unwrap();
+
     let http_config = HttpConfig {
         http_client_retries: config.client.http_client_retries,
         http_client_buffer_size: config.client.http_client_buffer_size,
@@ -90,7 +97,7 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>,
 
     let serve = Http::new()
         .serve_addr_handle(&address, &handle, move || {
-            let controller = controller::ControllerImpl::new(config.clone(), client_handle.clone(), s3.clone());
+            let controller = controller::ControllerImpl::new(config.clone(), jwt_public_key.clone(), client_handle.clone(), s3.clone());
 
             // Prepare application
             let app = Application::new(controller).with_acao(AccessControlAllowOrigin::Value(config.server.acao.clone()));
