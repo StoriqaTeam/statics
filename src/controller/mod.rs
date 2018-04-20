@@ -7,8 +7,6 @@ pub mod multipart_utils;
 pub mod routes;
 pub mod utils;
 
-use chrono::prelude::*;
-use chrono::Duration;
 use futures::future;
 use futures::prelude::*;
 use hyper;
@@ -16,7 +14,7 @@ use hyper::header::{Authorization, Bearer};
 use hyper::server::Request;
 use hyper::Headers;
 use hyper::{Get, Post};
-use jsonwebtoken::{decode, Validation};
+use jsonwebtoken::{decode, Validation, Algorithm};
 use multipart::server::Multipart;
 use std::io::Read;
 use std::str::FromStr;
@@ -43,7 +41,7 @@ pub struct JWTPayload {
     pub exp: i64,
 }
 
-pub fn verify_token(jwt_secret_key: String, headers: &Headers) -> Box<Future<Item = JWTPayload, Error = ControllerError>> {
+pub fn verify_token(jwt_key: Vec<u8>, leeway: i64, headers: &Headers) -> Box<Future<Item = JWTPayload, Error = ControllerError>> {
     Box::new(
         future::result(
             headers
@@ -52,7 +50,9 @@ pub fn verify_token(jwt_secret_key: String, headers: &Headers) -> Box<Future<Ite
                 .ok_or_else(|| ControllerError::BadRequest(ServiceError::Unauthorized("Missing token".into()).into())),
         ).and_then(move |auth| {
             let token = auth.0.token.as_ref();
-            decode::<JWTPayload>(token, jwt_secret_key.as_ref(), &Validation::default())
+
+            let validation = Validation {leeway, ..Validation::new(Algorithm::RS256)};
+            decode::<JWTPayload>(token, &jwt_key, &validation)
                 .map_err(|e| ControllerError::BadRequest(ServiceError::Unauthorized(format!("Failed to parse JWT token: {}", e)).into()))
         })
             .map(|t| t.claims),
@@ -62,6 +62,7 @@ pub fn verify_token(jwt_secret_key: String, headers: &Headers) -> Box<Future<Ite
 /// Controller handles route parsing and calling `Service` layer
 pub struct ControllerImpl {
     pub config: Config,
+    pub jwt_public_key: Vec<u8>,
     pub route_parser: Arc<RouteParser<Route>>,
     pub client: ClientHandle,
     pub s3: Arc<S3>,
@@ -69,10 +70,11 @@ pub struct ControllerImpl {
 
 impl ControllerImpl {
     /// Create a new controller based on services
-    pub fn new(config: Config, client: ClientHandle, s3: Arc<S3>) -> Self {
+    pub fn new(config: Config, jwt_public_key: Vec<u8>, client: ClientHandle, s3: Arc<S3>) -> Self {
         let route_parser = Arc::new(routes::create_route_parser());
         Self {
             config,
+            jwt_public_key,
             route_parser,
             client,
             s3,
@@ -107,18 +109,9 @@ impl Controller for ControllerImpl {
                     future::ok(())
                         .and_then({
                             let headers = headers.clone();
-                            let secret_key = self.config.jwt.secret_key.clone();
-                            move |_| verify_token(secret_key, &headers)
-                        })
-                        .and_then(|token| {
-                            let token_time = NaiveDateTime::from_timestamp(token.exp, 0);
-                            let current_time = Utc::now().naive_utc();
-
-                            if token_time + Duration::hours(24) < current_time {
-                                future::err(ControllerError::InternalServerError(format_err!("Token has expired")))
-                            } else {
-                                future::ok(token)
-                            }
+                            let leeway = self.config.jwt.leeway;
+                            let jwt_key = self.jwt_public_key.clone();
+                            move |_| verify_token(jwt_key, leeway, &headers)
                         })
                         .and_then(|_user_id| read_bytes(req.body()).map_err(|e| ControllerError::UnprocessableEntity(e.into())))
                         .and_then(move |bytes| {

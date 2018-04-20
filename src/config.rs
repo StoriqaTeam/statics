@@ -36,7 +36,8 @@ pub struct S3 {
 /// JWT data
 #[derive(Debug, Deserialize, Clone)]
 pub struct JWT {
-    pub secret_key: String,
+    pub public_key_path: String,
+    pub leeway: i64,
 }
 
 /// Http client settings

@@ -64,7 +64,7 @@ impl UploadTester {
                         user_id: 12345,
                         exp: Utc::now().timestamp(),
                     },
-                    context.config.jwt.secret_key.as_ref(),
+                    context.config.jwt.public_key.as_ref(),
                 ).unwrap(),
             ),
         }));
