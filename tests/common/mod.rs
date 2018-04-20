@@ -1,5 +1,6 @@
 extern crate hyper_tls;
 extern crate rand;
+extern crate std;
 
 use lib;
 
@@ -27,7 +28,8 @@ pub fn setup() -> Context {
     let (tx, rx) = channel::<bool>();
     let mut rng = rand::thread_rng();
     let port = rng.gen_range(50000, 60000);
-    let config = lib::config::Config::new().expect("Can't load app config!");
+    let mut config = lib::config::Config::new().expect("Can't load app config!");
+    config.jwt.leeway = std::i64::MAX;
     thread::spawn({
         let config = config.clone();
         let tx = tx.clone();

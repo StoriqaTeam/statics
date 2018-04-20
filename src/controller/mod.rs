@@ -14,7 +14,7 @@ use hyper::header::{Authorization, Bearer};
 use hyper::server::Request;
 use hyper::Headers;
 use hyper::{Get, Post};
-use jsonwebtoken::{decode, Validation, Algorithm};
+use jsonwebtoken::{decode, Algorithm, Validation};
 use multipart::server::Multipart;
 use std::io::Read;
 use std::str::FromStr;
@@ -51,7 +51,10 @@ pub fn verify_token(jwt_key: Vec<u8>, leeway: i64, headers: &Headers) -> Box<Fut
         ).and_then(move |auth| {
             let token = auth.0.token.as_ref();
 
-            let validation = Validation {leeway, ..Validation::new(Algorithm::RS256)};
+            let validation = Validation {
+                leeway,
+                ..Validation::new(Algorithm::RS256)
+            };
             decode::<JWTPayload>(token, &jwt_key, &validation)
                 .map_err(|e| ControllerError::BadRequest(ServiceError::Unauthorized(format!("Failed to parse JWT token: {}", e)).into()))
         })
