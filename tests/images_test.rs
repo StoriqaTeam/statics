@@ -13,7 +13,6 @@ extern crate serde_derive;
 
 pub mod common;
 
-use chrono::prelude::*;
 use common::Context;
 use futures::future;
 use futures::future::Future;
@@ -21,7 +20,6 @@ use futures::Stream;
 use hyper::header::{Authorization, Bearer, ContentLength, ContentType};
 use hyper::StatusCode;
 use hyper::{Method, Request, Uri};
-use jsonwebtoken::{encode, Header};
 use std::str::FromStr;
 use stq_http::request_util::read_body;
 
@@ -57,16 +55,7 @@ impl UploadTester {
         let url = Uri::from_str(&format!("{}/images", context.base_url)).unwrap();
         let mut req = Request::new(Method::Post, url);
         req.headers_mut().set(Authorization::<Bearer>(Bearer {
-            token: self.jwt_token.unwrap_or(
-                encode(
-                    &Header::default(),
-                    &lib::controller::JWTPayload {
-                        user_id: 12345,
-                        exp: Utc::now().timestamp(),
-                    },
-                    context.config.jwt.public_key.as_ref(),
-                ).unwrap(),
-            ),
+            token: self.jwt_token.unwrap_or("eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjozLCJleHAiOjE1MjQyMjU4OTh9.O0OtQXgAJtgEgJ2luvQJWJBu1qWVafUvyk5dxMmr-1Nrcgk_IoIllQm1p_lY4j2VnWHdQGjHKTZgN6YmmnEDtcPaKQX7nsF73r378f3bIEnenwdMiqzNjwSgdG-Ke9WLzY3oOsbbjuIs5wv2FQvygvydzDzfYAg_BM02rRmDQSR6bRsHayjL2c9kV2ImGRJynjSQgwDSTubu3NnJmUHf66F5XtsC8aYCxBWJKSkNOXYNIF1oqw-59MmV3QppwEfICuaQQyGif_gxBAoXVonQGPByhI74lk-3rS5f6O2Yr09fUr0WyqkIgsKUXJC_JQwPbf7OWMDNLOdV2aKirpLraQ".into()),
         }));
         req.headers_mut().set(ContentType(mime));
         req.headers_mut()
