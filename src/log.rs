@@ -10,7 +10,13 @@ pub fn log_environment() -> LogBuilder {
     builder
         .format(|formatter, record| -> std::io::Result<()> {
             let now = Utc::now();
-            writeln!(formatter, "{} - {} - {}", now.to_rfc3339(), record.level(), record.args())
+            writeln!(
+                formatter,
+                "{} - {} - {}",
+                now.to_rfc3339(),
+                record.level(),
+                record.args()
+            )
         })
         .filter(None, LogLevelFilter::Info);
 
