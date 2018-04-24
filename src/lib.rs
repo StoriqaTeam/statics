@@ -88,16 +88,30 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>,
     let client_stream = client.stream();
     handle.spawn(client_stream.for_each(|_| Ok(())));
 
-    let s3 = Arc::new(S3::create(&config.s3.key, &config.s3.secret, &config.s3.bucket, &handle).unwrap());
+    let s3 = Arc::new(
+        S3::create(
+            &config.s3.key,
+            &config.s3.secret,
+            &config.s3.bucket,
+            &handle,
+        ).unwrap(),
+    );
 
     let address = {
         let port = port.as_ref().unwrap_or(&config.server.port);
-        format!("{}:{}", config.server.host, port).parse().expect("Could not parse address")
+        format!("{}:{}", config.server.host, port)
+            .parse()
+            .expect("Could not parse address")
     };
 
     let serve = Http::new()
         .serve_addr_handle(&address, &handle, move || {
-            let controller = controller::ControllerImpl::new(config.clone(), jwt_public_key.clone(), client_handle.clone(), s3.clone());
+            let controller = controller::ControllerImpl::new(
+                config.clone(),
+                jwt_public_key.clone(),
+                client_handle.clone(),
+                s3.clone(),
+            );
 
             // Prepare application
             let app = Application::new(controller).with_acao(AccessControlAllowOrigin::Value(config.server.acao.clone()));
@@ -113,7 +127,10 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>,
         let handle = handle.clone();
         serve
             .for_each(move |conn| {
-                handle.spawn(conn.map(|_| ()).map_err(|why| error!("Server Error: {:?}", why)));
+                handle.spawn(
+                    conn.map(|_| ())
+                        .map_err(|why| error!("Server Error: {:?}", why)),
+                );
                 Ok(())
             })
             .map_err(|_| ())

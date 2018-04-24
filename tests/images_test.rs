@@ -1,15 +1,16 @@
 extern crate chrono;
 extern crate futures;
+extern crate futures_timer;
 extern crate hyper;
 extern crate jsonwebtoken;
 extern crate mime;
 extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate serde_json;
 extern crate statics_lib as lib;
 extern crate stq_http;
 extern crate tokio_core;
-#[macro_use]
-extern crate serde_derive;
 
 pub mod common;
 
@@ -17,6 +18,7 @@ use common::Context;
 use futures::future;
 use futures::future::Future;
 use futures::Stream;
+use futures_timer::FutureExt;
 use hyper::header::{Authorization, Bearer, ContentLength, ContentType};
 use hyper::StatusCode;
 use hyper::{Method, Request, Uri};
@@ -39,11 +41,16 @@ struct UploadTester {
 
 impl UploadTester {
     fn test(self) {
-        let context = &mut common::setup();
+        let mut context = common::setup();
         let original_filename = "image-328x228.png";
         let original_bytes = common::read_static_file(original_filename);
         let mut body = b"-----------------------------2132006148186267924133397521\r\nContent-Disposition: form-data; name=\"file\"; filename=\"image-328x228.png\nContent-Type: ".to_vec();
-        body.extend(self.content_type.unwrap_or("image/png".to_string()).into_bytes().into_iter());
+        body.extend(
+            self.content_type
+                .unwrap_or("image/png".to_string())
+                .into_bytes()
+                .into_iter(),
+        );
         body.extend(b"\r\n\r\n".into_iter());
         body.extend(original_bytes);
         body.extend(b"\r\n-----------------------------2132006148186267924133397521--\r\n".into_iter());
@@ -58,12 +65,24 @@ impl UploadTester {
             token: self.jwt_token.unwrap_or("eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjozLCJleHAiOjE1MjQyMjU4OTh9.O0OtQXgAJtgEgJ2luvQJWJBu1qWVafUvyk5dxMmr-1Nrcgk_IoIllQm1p_lY4j2VnWHdQGjHKTZgN6YmmnEDtcPaKQX7nsF73r378f3bIEnenwdMiqzNjwSgdG-Ke9WLzY3oOsbbjuIs5wv2FQvygvydzDzfYAg_BM02rRmDQSR6bRsHayjL2c9kV2ImGRJynjSQgwDSTubu3NnJmUHf66F5XtsC8aYCxBWJKSkNOXYNIF1oqw-59MmV3QppwEfICuaQQyGif_gxBAoXVonQGPByhI74lk-3rS5f6O2Yr09fUr0WyqkIgsKUXJC_JQwPbf7OWMDNLOdV2aKirpLraQ".into()),
         }));
         req.headers_mut().set(ContentType(mime));
-        req.headers_mut()
-            .set(ContentLength(self.content_length.unwrap_or(body.len() as u64)));
+        req.headers_mut().set(ContentLength(
+            self.content_length.unwrap_or(body.len() as u64),
+        ));
         req.set_body(body);
-        let response = context.core.run(context.client.request(req)).unwrap();
 
-        assert_eq!(response.status(), self.response_status.unwrap_or(StatusCode::Ok));
+        let timeout = std::time::Duration::from_secs(10);
+
+        println!("Sending request");
+        let response = context
+            .core
+            .run(context.client.request(req).timeout(timeout))
+            .unwrap();
+        println!("Received response");
+
+        assert_eq!(
+            response.status(),
+            self.response_status.unwrap_or(StatusCode::Ok)
+        );
 
         if response.status() == StatusCode::Ok {
             let body = context.core.run(read_body(response.body())).unwrap();
@@ -71,7 +90,7 @@ impl UploadTester {
             let futures: Vec<_> = ["original", "thumb", "small", "medium", "large"]
                 .into_iter()
                 .map(|size| {
-                    fetch_image_from_s3_and_file(context, original_filename, &url, size).map(|(local, remote)| {
+                    fetch_image_from_s3_and_file(&mut context, original_filename, &url, size).map(|(local, remote)| {
                         assert_eq!(local, remote);
                     })
                 })
@@ -83,7 +102,9 @@ impl UploadTester {
 
 #[test]
 fn images_post() {
-    UploadTester { ..Default::default() }.test()
+    UploadTester {
+        ..Default::default()
+    }.test()
 }
 
 #[test]
