@@ -32,6 +32,7 @@ struct UrlResponse {
 
 #[derive(Default)]
 struct UploadTester {
+    original_filename: Option<String>,
     boundary: Option<String>,
     content_length: Option<u64>,
     content_type: Option<String>,
@@ -42,9 +43,16 @@ struct UploadTester {
 impl UploadTester {
     fn test(self) {
         let mut context = common::setup();
-        let original_filename = "image-328x228.png";
+        let original_filename = &self.original_filename
+            .unwrap_or("image-328x228.png".to_string());
         let original_bytes = common::read_static_file(original_filename);
-        let mut body = b"-----------------------------2132006148186267924133397521\r\nContent-Disposition: form-data; name=\"file\"; filename=\"image-328x228.png\nContent-Type: ".to_vec();
+        let mut body = Vec::new();
+        body.extend(
+            b"-----------------------------2132006148186267924133397521\r\nContent-Disposition: form-data; name=\"file\"; filename=\""
+                .into_iter(),
+        );
+        body.extend(original_filename.clone().into_bytes().into_iter());
+        body.extend(b"\nContent-Type: ".into_iter());
         body.extend(
             self.content_type
                 .unwrap_or("image/png".to_string())
