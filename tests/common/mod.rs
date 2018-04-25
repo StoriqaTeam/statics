@@ -1,12 +1,13 @@
 extern crate hyper_tls;
 extern crate rand;
+extern crate std;
 
 use lib;
 
 use self::hyper_tls::HttpsConnector;
 use self::rand::Rng;
-use hyper::Client;
 use hyper::client::HttpConnector;
+use hyper::Client;
 use std::fs::File;
 use std::io::Read;
 use std::sync::mpsc::channel;
@@ -17,6 +18,7 @@ type HttpClient = Client<HttpsConnector<HttpConnector>>;
 
 pub struct Context {
     pub client: HttpClient,
+    pub config: lib::config::Config,
     pub base_url: String,
     pub core: Core,
 }
@@ -26,10 +28,12 @@ pub fn setup() -> Context {
     let (tx, rx) = channel::<bool>();
     let mut rng = rand::thread_rng();
     let port = rng.gen_range(50000, 60000);
+    let mut config = lib::config::Config::new().expect("Can't load app config!");
+    config.jwt.leeway = std::i64::MAX;
     thread::spawn({
+        let config = config.clone();
         let tx = tx.clone();
         move || {
-            let config = lib::config::Config::new().expect("Can't load app config!");
             lib::start_server(config, Some(port.to_string()), move || {
                 let _ = tx.send(true);
             });
@@ -42,6 +46,7 @@ pub fn setup() -> Context {
         .build(&core.handle());
     Context {
         client,
+        config,
         base_url: format!("http://localhost:{}", port),
         core,
     }

@@ -7,26 +7,25 @@ pub mod multipart_utils;
 pub mod routes;
 pub mod utils;
 
-use std::io::Read;
-use std::str::FromStr;
-use std::sync::Arc;
-
 use futures::future;
 use futures::prelude::*;
 use hyper;
-use hyper::Headers;
 use hyper::header::{Authorization, Bearer};
 use hyper::server::Request;
+use hyper::Headers;
 use hyper::{Get, Post};
-use jsonwebtoken::{decode, Validation};
+use jsonwebtoken::{decode, Algorithm, Validation};
 use multipart::server::Multipart;
+use std::io::Read;
+use std::str::FromStr;
+use std::sync::Arc;
 // use hyper::header::Authorization;
 
 use stq_http::client::ClientHandle;
 use stq_http::controller::Controller;
 use stq_http::errors::ControllerError;
-use stq_http::request_util::ControllerFuture;
 use stq_http::request_util::serialize_future;
+use stq_http::request_util::ControllerFuture;
 use stq_router::RouteParser;
 
 use self::routes::Route;
@@ -39,9 +38,10 @@ use services::types::ImageFormat;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct JWTPayload {
     pub user_id: i32,
+    pub exp: i64,
 }
 
-pub fn verify_token(jwt_secret_key: String, headers: &Headers) -> Box<Future<Item = JWTPayload, Error = ControllerError>> {
+pub fn verify_token(jwt_key: Vec<u8>, leeway: i64, headers: &Headers) -> Box<Future<Item = JWTPayload, Error = ControllerError>> {
     Box::new(
         future::result(
             headers
@@ -50,7 +50,12 @@ pub fn verify_token(jwt_secret_key: String, headers: &Headers) -> Box<Future<Ite
                 .ok_or_else(|| ControllerError::BadRequest(ServiceError::Unauthorized("Missing token".into()).into())),
         ).and_then(move |auth| {
             let token = auth.0.token.as_ref();
-            decode::<JWTPayload>(token, jwt_secret_key.as_ref(), &Validation::default())
+
+            let validation = Validation {
+                leeway,
+                ..Validation::new(Algorithm::RS256)
+            };
+            decode::<JWTPayload>(token, &jwt_key, &validation)
                 .map_err(|e| ControllerError::BadRequest(ServiceError::Unauthorized(format!("Failed to parse JWT token: {}", e)).into()))
         })
             .map(|t| t.claims),
@@ -60,6 +65,7 @@ pub fn verify_token(jwt_secret_key: String, headers: &Headers) -> Box<Future<Ite
 /// Controller handles route parsing and calling `Service` layer
 pub struct ControllerImpl {
     pub config: Config,
+    pub jwt_public_key: Vec<u8>,
     pub route_parser: Arc<RouteParser<Route>>,
     pub client: ClientHandle,
     pub s3: Arc<S3>,
@@ -67,10 +73,11 @@ pub struct ControllerImpl {
 
 impl ControllerImpl {
     /// Create a new controller based on services
-    pub fn new(config: Config, client: ClientHandle, s3: Arc<S3>) -> Self {
+    pub fn new(config: Config, jwt_public_key: Vec<u8>, client: ClientHandle, s3: Arc<S3>) -> Self {
         let route_parser = Arc::new(routes::create_route_parser());
         Self {
             config,
+            jwt_public_key,
             route_parser,
             client,
             s3,
@@ -105,8 +112,9 @@ impl Controller for ControllerImpl {
                     future::ok(())
                         .and_then({
                             let headers = headers.clone();
-                            let secret_key = self.config.jwt.secret_key.clone();
-                            move |_| verify_token(secret_key, &headers)
+                            let leeway = self.config.jwt.leeway;
+                            let jwt_key = self.jwt_public_key.clone();
+                            move |_| verify_token(jwt_key, leeway, &headers)
                         })
                         .and_then(|_user_id| read_bytes(req.body()).map_err(|e| ControllerError::UnprocessableEntity(e.into())))
                         .and_then(move |bytes| {
@@ -114,21 +122,26 @@ impl Controller for ControllerImpl {
                             let multipart_wrapper = multipart_utils::MultipartRequest::new(method, headers, bytes);
                             let multipart_entity = match Multipart::from_request(multipart_wrapper) {
                                 Err(_) => {
-                                    return Box::new(future::err::<String, ControllerError>(ControllerError::UnprocessableEntity(
-                                        multipart_utils::MultipartError::Parse("Couldn't convert request body to multipart".to_string())
-                                            .into(),
-                                    ))) as ControllerFuture
+                                    return Box::new(future::err::<String, ControllerError>(
+                                        ControllerError::UnprocessableEntity(
+                                            multipart_utils::MultipartError::Parse(
+                                                "Couldn't convert request body to multipart".to_string(),
+                                            ).into(),
+                                        ),
+                                    )) as ControllerFuture
                                 }
                                 Ok(mp) => mp,
                             };
                             let mut field = match multipart_entity.into_entry().into_result() {
                                 Ok(Some(field)) => field,
                                 _ => {
-                                    return Box::new(future::err::<String, ControllerError>(ControllerError::UnprocessableEntity(
-                                        multipart_utils::MultipartError::Parse(
-                                            "Parsed multipart, but couldn't read the next entry".to_string(),
-                                        ).into(),
-                                    ))) as ControllerFuture
+                                    return Box::new(future::err::<String, ControllerError>(
+                                        ControllerError::UnprocessableEntity(
+                                            multipart_utils::MultipartError::Parse(
+                                                "Parsed multipart, but couldn't read the next entry".to_string(),
+                                            ).into(),
+                                        ),
+                                    )) as ControllerFuture
                                 }
                             };
                             let format: Result<ImageFormat, ControllerError> = field
@@ -148,7 +161,7 @@ impl Controller for ControllerImpl {
                             let _ = field.data.read_to_end(&mut data);
                             let result: ControllerFuture = Box::new(
                                 s3.upload_image(format, data)
-                                    .map(|name| json!({"url": name}).to_string())
+                                    .map(|name| json!({ "url": name }).to_string())
                                     .map_err(|e| ControllerError::UnprocessableEntity(e.into())),
                             );
                             result

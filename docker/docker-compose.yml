@@ -14,7 +14,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://statics:statics@statics-pg/statics
     ports:
-      - 8000:8000
+      - 8010:8010
     stdin_open: true
     depends_on:
       - statics-pg

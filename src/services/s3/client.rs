@@ -1,6 +1,6 @@
 //! Client for AWS S3
 
-use futures::future::Future;
+use futures::prelude::*;
 use rusoto_core::request::HttpClient;
 use rusoto_s3::{PutObjectRequest, S3, S3Client as CrateS3Client};
 
@@ -43,6 +43,6 @@ impl S3Client for CrateS3Client<Credentials, HttpClient> {
             website_redirect_location: None,
         };
 
-        Box::new(self.put_object(&request).map(|_| ()).map_err(|e| e.into()))
+        Box::new(self.put_object(&request).map(|_| ()).map_err(S3Error::from))
     }
 }
