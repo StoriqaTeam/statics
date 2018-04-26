@@ -40,6 +40,7 @@ impl EofCursor {
             retries: 2,
         }
     }
+}
 
 /// Structure that complies with `multipart` crate HttpRequest
 pub struct MultipartRequest {
