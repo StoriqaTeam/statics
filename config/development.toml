@@ -1,6 +1,6 @@
 [jwt]
 public_key_path = "config/keys/public_key.der"
-leeway = 86400
+leeway = 9999999
 
 [S3]
 bucket = "storiqa-dev"

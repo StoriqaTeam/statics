@@ -11,18 +11,52 @@ use mime;
 use multipart::server::HttpRequest;
 use std::io::{Cursor, Error as IoError, ErrorKind as IoErrorKind, Read};
 
-pub struct EofCursor(Cursor<Vec<u8>>);
+pub struct EofCursor {
+    cursor: Cursor<Vec<u8>>,
+    retries: u8,
+}
 
 impl Read for EofCursor {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, IoError> {
-        self.0.read(buf).and_then(|n| {
+        self.cursor.read(buf).and_then(|n| {
+            println!("Size: {}, Retries: {}", n, self.retries);
             if n == 0 {
-                Err(IoError::new(IoErrorKind::UnexpectedEof, "Unexpected EOF"))
+                if self.retries > 0 {
+                    self.retries -= 1;
+                    Ok(n)
+                } else {
+                    Err(IoError::new(IoErrorKind::UnexpectedEof, "Unexpected EOF"))
+                }
             } else {
                 Ok(n)
             }
         })
     }
+}
+
+impl EofCursor {
+    fn new(body: Vec<u8>) -> Self {
+        EofCursor {
+            cursor: Cursor::new(body),
+            retries: 2,
+        }
+    }
+
+    // fn read_with_retries(&mut self, buf: &mut [u8], retries: u32) -> Result<usize, IoError> {
+    //     self.0.read(buf).and_then(|n| {
+    //         println!("Size: {}, Retries: {}", n, retries);
+    //         if n == 0 {
+    //             if self.retries > 0 {
+    //                 self.retries -= 1;
+    //                 Ok(n)
+    //             } else {
+    //                 Err(IoError::new(IoErrorKind::UnexpectedEof, "Unexpected EOF"))
+    //             }
+    //         } else {
+    //             Ok(n)
+    //         }
+    //     })
+    // }
 }
 
 /// Structure that complies with `multipart` crate HttpRequest
@@ -34,10 +68,11 @@ pub struct MultipartRequest {
 
 impl MultipartRequest {
     pub fn new(method: hyper::Method, headers: hyper::Headers, body: Vec<u8>) -> Self {
+        println!("Body len: {}", body.len());
         Self {
             method,
             headers,
-            body: EofCursor(Cursor::new(body)),
+            body: EofCursor::new(body),
         }
     }
 }
@@ -69,6 +104,5 @@ impl HttpRequest for MultipartRequest {
 
 #[derive(Debug, Fail)]
 pub enum MultipartError {
-    #[fail(display = "Failed to parse multipart body: {}", _0)]
-    Parse(String),
+    #[fail(display = "Failed to parse multipart body: {}", _0)] Parse(String),
 }

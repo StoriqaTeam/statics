@@ -159,6 +159,7 @@ impl Controller for ControllerImpl {
                             };
                             let mut data: Vec<u8> = Vec::new();
                             let _ = field.data.read_to_end(&mut data);
+                            println!("Size: {}", data.len());
                             let result: ControllerFuture = Box::new(
                                 s3.upload_image(format, data)
                                     .map(|name| json!({ "url": name }).to_string())
