@@ -13,7 +13,7 @@ use std::io::{Cursor, Error as IoError, ErrorKind as IoErrorKind, Read};
 
 pub struct EofCursor {
     cursor: Cursor<Vec<u8>>,
-    retries: u8,
+    retries: u32,
 }
 
 impl Read for EofCursor {
@@ -37,7 +37,7 @@ impl EofCursor {
     fn new(body: Vec<u8>) -> Self {
         EofCursor {
             cursor: Cursor::new(body),
-            retries: 2,
+            retries: 1000,
         }
     }
 }
