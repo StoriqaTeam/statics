@@ -51,7 +51,7 @@ pipeline:
     namespace: default
     kind: deployment
     object: statics
-    img_name: storiqateam/stq-statics
+    img_names: storiqateam/stq-statics
     img_tags: ${DRONE_BRANCH//\//_}${DRONE_BUILD_NUMBER}
     img_cnts: statics
     user: admin
@@ -66,7 +66,7 @@ pipeline:
     namespace: default
     kind: deployment
     object: statics
-    img_name: storiqateam/stq-statics
+    img_names: storiqateam/stq-statics
     img_tags: ${DRONE_BRANCH//\//_}${DRONE_BUILD_NUMBER}
     img_cnts: statics
     user: admin
@@ -81,7 +81,7 @@ pipeline:
     namespace: default
     kind: deployment
     object: statics
-    img_name: storiqateam/stq-statics
+    img_names: storiqateam/stq-statics
     img_tags: ${DRONE_BRANCH//\//_}${DRONE_BUILD_NUMBER}
     img_cnts: statics
     user: admin
