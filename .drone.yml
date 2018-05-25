@@ -25,6 +25,7 @@ pipeline:
     - rm -rf .git && mv -f .git.bak .git
     when:
       event: pull_request
+      branch: [ master, release* ]
   test:
     image: rust:1.26-stretch
     environment:
@@ -37,13 +38,14 @@ pipeline:
     - cargo test
     when:
       event: pull_request
+      branch: [ master, release* ]
 
 ###
 # Build and deploy to nightly / stage
 ###
 
   build:
-    image: rust:1.25-stretch
+    image: rust:1.26-stretch
     commands:
     - cargo build --release --locked
     when:
