@@ -103,7 +103,7 @@ pipeline:
     kind: deployment
     object: statics
     img_names: storiqateam/stq-statics
-    img_tags: ${DRONE_BRANCH//\//_}${DRONE_BUILD_NUMBER}
+    img_tags: ${DRONE_BRANCH//\//_}${DRONE_PARENT_BUILD_NUMBER}
     img_cnts: statics
     user: admin
     addr: https://api.stable.stq.cloud
