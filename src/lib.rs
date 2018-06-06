@@ -26,7 +26,7 @@ extern crate image;
 extern crate jsonwebtoken;
 #[macro_use]
 extern crate log as log_crate;
-#[macro_use]
+#[cfg_attr(test, macro_use)]
 extern crate maplit;
 extern crate mime;
 extern crate multipart;
@@ -44,6 +44,7 @@ extern crate tokio_core;
 
 pub mod config;
 pub mod controller;
+pub mod errors;
 pub mod log;
 pub mod services;
 
@@ -100,7 +101,10 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>,
             let controller = controller::ControllerImpl::new(config.clone(), jwt_public_key.clone(), client_handle.clone(), s3.clone());
 
             // Prepare application
-            let app = Application::new(controller).with_acao(AccessControlAllowOrigin::Value(config.server.acao.clone()));
+            let app = Application::<errors::Error>::new(controller).with_middleware({
+                let acao = config.server.acao.clone();
+                move |rsp| rsp.with_header(AccessControlAllowOrigin::Value(acao.clone()))
+            });
 
             Ok(app)
         })
