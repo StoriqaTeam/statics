@@ -25,11 +25,17 @@ pub struct Server {
     pub acao: String,
 }
 
+fn default_s3_endpoint() -> String {
+    "s3.amazonaws.com".to_string()
+}
+
 /// AWS S3 credentials
 #[derive(Debug, Deserialize, Clone)]
 pub struct S3 {
     pub key: String,
     pub secret: String,
+    #[serde(default = "default_s3_endpoint")]
+    pub endpoint: String,
     pub bucket: String,
 }
 

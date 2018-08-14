@@ -19,11 +19,6 @@ impl ProvideAwsCredentials for Credentials {
     type Future = FutureResult<AwsCredentials, CredentialsError>;
 
     fn credentials(&self) -> Self::Future {
-        ok(AwsCredentials::new(
-            self.key.clone(),
-            self.secret.clone(),
-            None,
-            None,
-        ))
+        ok(AwsCredentials::new(self.key.clone(), self.secret.clone(), None, None))
     }
 }
