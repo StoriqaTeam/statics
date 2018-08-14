@@ -122,26 +122,21 @@ impl Controller for ControllerImpl {
                             let multipart_wrapper = multipart_utils::MultipartRequest::new(method, headers, bytes);
                             let multipart_entity = match Multipart::from_request(multipart_wrapper) {
                                 Err(_) => {
-                                    return Box::new(future::err::<String, ControllerError>(
-                                        ControllerError::UnprocessableEntity(
-                                            multipart_utils::MultipartError::Parse(
-                                                "Couldn't convert request body to multipart".to_string(),
-                                            ).into(),
-                                        ),
-                                    )) as ControllerFuture
+                                    return Box::new(future::err::<String, ControllerError>(ControllerError::UnprocessableEntity(
+                                        multipart_utils::MultipartError::Parse("Couldn't convert request body to multipart".to_string())
+                                            .into(),
+                                    ))) as ControllerFuture
                                 }
                                 Ok(mp) => mp,
                             };
                             let mut field = match multipart_entity.into_entry().into_result() {
                                 Ok(Some(field)) => field,
                                 _ => {
-                                    return Box::new(future::err::<String, ControllerError>(
-                                        ControllerError::UnprocessableEntity(
-                                            multipart_utils::MultipartError::Parse(
-                                                "Parsed multipart, but couldn't read the next entry".to_string(),
-                                            ).into(),
-                                        ),
-                                    )) as ControllerFuture
+                                    return Box::new(future::err::<String, ControllerError>(ControllerError::UnprocessableEntity(
+                                        multipart_utils::MultipartError::Parse(
+                                            "Parsed multipart, but couldn't read the next entry".to_string(),
+                                        ).into(),
+                                    ))) as ControllerFuture
                                 }
                             };
                             let format: Result<ImageFormat, ControllerError> = field

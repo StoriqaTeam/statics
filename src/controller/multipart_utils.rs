@@ -73,10 +73,7 @@ impl HttpRequest for MultipartRequest {
                 _ => return None,
             };
 
-            params
-                .filter(|kv| kv.0 == mime::BOUNDARY)
-                .next()
-                .map(|kv| kv.1.as_str())
+            params.filter(|kv| kv.0 == mime::BOUNDARY).next().map(|kv| kv.1.as_str())
         })
     }
     fn body(self) -> Self::Body {
@@ -86,5 +83,6 @@ impl HttpRequest for MultipartRequest {
 
 #[derive(Debug, Fail)]
 pub enum MultipartError {
-    #[fail(display = "Failed to parse multipart body: {}", _0)] Parse(String),
+    #[fail(display = "Failed to parse multipart body: {}", _0)]
+    Parse(String),
 }

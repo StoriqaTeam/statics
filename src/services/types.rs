@@ -29,10 +29,7 @@ impl FromStr for ImageFormat {
         match s {
             "png" => Ok(ImageFormat::PNG),
             "jpg" | "jpeg" => Ok(ImageFormat::JPG),
-            format => Err(ServiceError::Image(format!(
-                "Invalid image format: {}",
-                format
-            ))),
+            format => Err(ServiceError::Image(format!("Invalid image format: {}", format))),
         }
     }
 }
