@@ -39,13 +39,13 @@ extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
 extern crate stq_http;
+extern crate stq_logging;
 extern crate stq_router;
 extern crate tokio_core;
 
-pub mod config;
+mod config;
 pub mod controller;
 pub mod errors;
-pub mod log;
 pub mod services;
 
 use std::fs::File;
@@ -63,14 +63,14 @@ use tokio_core::reactor::Core;
 use stq_http::client::Config as HttpConfig;
 use stq_http::controller::Application;
 
-use config::Config;
+pub use config::Config;
 use services::s3::S3;
 
 /// Starts new web service from provided `Config`
 ///
 /// * `config` - application config
 /// * `callback` - callback when server is started
-pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<String>, callback: F) {
+pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<u16>, callback: F) {
     // Prepare reactor
     let mut core = Core::new().expect("Unexpected error creating event loop core");
     let handle = Arc::new(core.handle());

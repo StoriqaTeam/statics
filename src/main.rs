@@ -13,11 +13,13 @@
 //! `https://s3.amazonaws.com/storiqa-dev/img-2IpSsAjuxB8C-large.png` is large image.
 
 extern crate statics_lib as lib;
+extern crate stq_logging;
 
 fn main() {
-    // Prepare logger
-    lib::log::log_environment().init();
+    let config = lib::Config::new().expect("Failed to load service configuration. Please check your 'config' folder");
 
-    let config = lib::config::Config::new().expect("Can't load app config!");
+    // Prepare logger
+    stq_logging::init(config.graylog.as_ref());
+
     lib::start_server(config, None, || ());
 }
