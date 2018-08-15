@@ -48,20 +48,18 @@ pub mod controller;
 pub mod errors;
 pub mod services;
 
+use futures::future;
+use futures::{Future, Stream};
+use hyper::header::AccessControlAllowOrigin;
+use hyper::server::Http;
+use rusoto_core::Region;
 use std::fs::File;
 use std::io::prelude::*;
 use std::process;
 use std::sync::Arc;
-
-use futures::future;
-use futures::{Future, Stream};
-// use futures_cpupool::CpuPool;
-use hyper::header::AccessControlAllowOrigin;
-use hyper::server::Http;
-use tokio_core::reactor::Core;
-
 use stq_http::client::Config as HttpConfig;
 use stq_http::controller::Application;
+use tokio_core::reactor::Core;
 
 pub use config::Config;
 use services::s3::S3;
@@ -89,7 +87,9 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<u16>, ca
     let client_stream = client.stream();
     handle.spawn(client_stream.for_each(|_| Ok(())));
 
-    let s3 = Arc::new(S3::create(&config.s3.key, &config.s3.secret, &config.s3.endpoint, &config.s3.bucket, &handle).unwrap());
+    let region = config.s3.region.parse::<Region>().expect("Invalid region specified");
+
+    let s3 = Arc::new(S3::create(&config.s3.key, &config.s3.secret, region.clone(), &config.s3.bucket, &handle).unwrap());
 
     let address = {
         let port = port.as_ref().unwrap_or(&config.server.port);
