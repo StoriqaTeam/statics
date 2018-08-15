@@ -2,6 +2,7 @@ extern crate chrono;
 extern crate futures;
 extern crate futures_timer;
 extern crate hyper;
+extern crate hyper_tls;
 extern crate jsonwebtoken;
 extern crate mime;
 extern crate serde;
@@ -14,16 +15,21 @@ extern crate tokio_core;
 
 pub mod common;
 
-use common::Context;
 use futures::future;
 use futures::future::Future;
 use futures::Stream;
 use futures_timer::FutureExt;
+use hyper::client::HttpConnector;
 use hyper::header::{Authorization, Bearer, ContentLength, ContentType};
+use hyper::Client;
 use hyper::StatusCode;
 use hyper::{Method, Request, Uri};
+use hyper_tls::HttpsConnector;
 use std::str::FromStr;
 use stq_http::request_util::read_body;
+use tokio_core::reactor::Core;
+
+type HttpClient = Client<HttpsConnector<HttpConnector>>;
 
 #[derive(Serialize, Deserialize)]
 struct UrlResponse {
@@ -41,8 +47,7 @@ struct UploadTester {
 }
 
 impl UploadTester {
-    fn test(self) {
-        let mut context = common::setup();
+    fn test(self, base_url: &str, core: &mut Core, client: &HttpClient) {
         let original_filename = &self.original_filename.unwrap_or("image-328x228.png".to_string());
         let original_bytes = common::read_static_file(original_filename);
         let mut body = Vec::new();
@@ -61,7 +66,7 @@ impl UploadTester {
         let mime = format!("multipart/form-data; boundary={}", &boundary)
             .parse::<mime::Mime>()
             .unwrap();
-        let url = Uri::from_str(&format!("{}/images", context.base_url)).unwrap();
+        let url = Uri::from_str(&format!("{}/images", base_url)).unwrap();
         let mut req = Request::new(Method::Post, url);
         req.headers_mut().set(Authorization::<Bearer>(Bearer {
             token: self.jwt_token.unwrap_or("eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjozLCJleHAiOjE1MjQyMjU4OTh9.O0OtQXgAJtgEgJ2luvQJWJBu1qWVafUvyk5dxMmr-1Nrcgk_IoIllQm1p_lY4j2VnWHdQGjHKTZgN6YmmnEDtcPaKQX7nsF73r378f3bIEnenwdMiqzNjwSgdG-Ke9WLzY3oOsbbjuIs5wv2FQvygvydzDzfYAg_BM02rRmDQSR6bRsHayjL2c9kV2ImGRJynjSQgwDSTubu3NnJmUHf66F5XtsC8aYCxBWJKSkNOXYNIF1oqw-59MmV3QppwEfICuaQQyGif_gxBAoXVonQGPByhI74lk-3rS5f6O2Yr09fUr0WyqkIgsKUXJC_JQwPbf7OWMDNLOdV2aKirpLraQ".into()),
@@ -74,61 +79,65 @@ impl UploadTester {
         let timeout = std::time::Duration::from_secs(10);
 
         println!("Sending request");
-        let response = context.core.run(context.client.request(req).timeout(timeout)).unwrap();
-        println!("Received response");
+        let response = core.run(client.request(req).timeout(timeout)).unwrap();
+        println!("Received response: {:?}", response);
+        let status = response.status();
+        let body = core.run(read_body(response.body())).unwrap();
+        println!("... with body {:?}", body);
 
-        assert_eq!(response.status(), self.response_status.unwrap_or(StatusCode::Ok));
+        assert_eq!(status, self.response_status.unwrap_or(StatusCode::Ok));
 
-        if response.status() == StatusCode::Ok {
-            let body = context.core.run(read_body(response.body())).unwrap();
+        if status == StatusCode::Ok {
             let url = serde_json::from_str::<UrlResponse>(&body).unwrap().url;
             let futures: Vec<_> = ["original", "thumb", "small", "medium", "large"]
                 .into_iter()
                 .map(|size| {
-                    fetch_image_from_s3_and_file(&mut context, original_filename, &url, size).map(|(local, remote)| {
+                    fetch_image_from_s3_and_file(&client, original_filename, &url, size).map(|(local, remote)| {
                         assert_eq!(local, remote);
                     })
                 })
                 .collect();
-            context.core.run(future::join_all(futures)).unwrap();
+            core.run(future::join_all(futures)).unwrap();
         }
     }
 }
 
 #[test]
-fn images_post() {
-    UploadTester { ..Default::default() }.test()
-}
+fn test_services() {
+    let base_url = common::setup();
 
-#[test]
-fn images_post_invalid_token() {
+    let mut core = Core::new().expect("Unexpected error creating event loop core");
+    let client = ::hyper::Client::configure()
+        .connector(HttpsConnector::new(4, &core.handle()).unwrap())
+        .build(&core.handle());
+
+    println!("Testing happy path");
+    UploadTester { ..Default::default() }.test(&base_url, &mut core, &client);
+
+    println!("Testing invalid token");
     UploadTester {
         jwt_token: Some("hello".into()),
         response_status: Some(StatusCode::BadRequest),
         ..Default::default()
-    }.test()
-}
+    }.test(&base_url, &mut core, &client);
 
-#[test]
-fn images_post_invalid_boundary() {
+    println!("Testing invalid boundary");
     UploadTester {
         boundary: Some("abeceda".into()),
         response_status: Some(StatusCode::UnprocessableEntity),
         ..Default::default()
-    }.test()
-}
+    }.test(&base_url, &mut core, &client);
 
-#[test]
-fn images_post_invalid_content_type() {
+    println!("Testing invalid content type");
     UploadTester {
         content_type: Some("image/svg".into()),
         response_status: Some(StatusCode::UnprocessableEntity),
         ..Default::default()
-    }.test()
+    }.test(&base_url, &mut core, &client);
 }
 
 fn fetch_image_from_s3_and_file(
-    context: &mut Context,
+    client: &HttpClient,
     filename: &str,
     url: &str,
     size: &str,
@@ -136,16 +145,10 @@ fn fetch_image_from_s3_and_file(
     let filename = add_size_to_url(filename, size);
     let url = add_size_to_url(url, size);
     let uri = Uri::from_str(&url).unwrap();
-    Box::new(
-        context
-            .client
-            .get(uri)
-            .and_then(|resp| read_bytes(resp.body()))
-            .map(move |remote_bytes| {
-                let local_bytes = common::read_static_file(&filename);
-                (remote_bytes, local_bytes)
-            }),
-    )
+    Box::new(client.get(uri).and_then(|resp| read_bytes(resp.body())).map(move |remote_bytes| {
+        let local_bytes = common::read_static_file(&filename);
+        (remote_bytes, local_bytes)
+    }))
 }
 
 fn add_size_to_url(url: &str, size: &str) -> String {

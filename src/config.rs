@@ -2,6 +2,7 @@
 
 use config_crate::{Config as RawConfig, ConfigError, Environment, File};
 use std::env;
+use stq_logging;
 
 /// Global app config
 #[derive(Debug, Deserialize, Clone)]
@@ -10,6 +11,8 @@ pub struct Config {
     pub client: Client,
     pub s3: S3,
     pub jwt: JWT,
+    /// GrayLog settings
+    pub graylog: Option<stq_logging::GrayLogConfig>,
 }
 
 fn default_acao() -> String {
@@ -20,7 +23,7 @@ fn default_acao() -> String {
 #[derive(Debug, Deserialize, Clone)]
 pub struct Server {
     pub host: String,
-    pub port: String,
+    pub port: u16,
     #[serde(default = "default_acao")]
     pub acao: String,
 }
@@ -58,7 +61,7 @@ pub struct Client {
 /// `development/test/production.toml`, then override with `STQ_STATICS_` env variables.
 /// #Examples
 /// ```
-/// use statics_lib::config::*;
+/// use statics_lib::Config;
 ///
 /// let config = Config::new();
 /// ```
