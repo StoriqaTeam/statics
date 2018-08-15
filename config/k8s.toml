@@ -3,6 +3,7 @@ public_key_path = "config/keys/public_key.der"
 leeway = 86400
 
 [S3]
+region = "us-east-1"
 bucket = "storiqa-dev"
 key = "AKIAJTQ4IR33MOO6VS2Q"
 secret = "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"
