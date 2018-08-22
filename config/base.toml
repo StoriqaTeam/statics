@@ -7,3 +7,4 @@ acao = "*"
 http_client_buffer_size=3
 http_client_retries=3
 dns_worker_thread_count=4
+timeout_duration_ms=5000

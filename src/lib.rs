@@ -26,8 +26,6 @@ extern crate image;
 extern crate jsonwebtoken;
 #[macro_use]
 extern crate log as log_crate;
-#[cfg_attr(test, macro_use)]
-extern crate maplit;
 extern crate mime;
 extern crate multipart;
 extern crate rand;
@@ -81,6 +79,7 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<u16>, ca
     let http_config = HttpConfig {
         http_client_retries: config.client.http_client_retries,
         http_client_buffer_size: config.client.http_client_buffer_size,
+        timeout_duration_ms: config.client.timeout_duration_ms,
     };
     let client = stq_http::client::Client::new(&http_config, &handle);
     let client_handle = client.handle();

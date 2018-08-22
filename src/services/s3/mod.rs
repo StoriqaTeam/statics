@@ -156,13 +156,15 @@ mod tests {
 
     impl<'a> Image for ImageMock<'a> {
         fn process(&self, _format: ImageFormat, _bytes: Vec<u8>) -> Box<Future<Item = HashMap<ImageSize, Vec<u8>>, Error = S3Error>> {
-            let result = hashmap! {
-                ImageSize::Thumb => b"thumb".to_vec(),
-                ImageSize::Small => b"small".to_vec(),
-                ImageSize::Medium => b"medium".to_vec(),
-                ImageSize::Large => b"large".to_vec(),
-                ImageSize::Original => b"original".to_vec(),
-            };
+            let result = vec![
+                (ImageSize::Thumb, "thumb"),
+                (ImageSize::Small, "small"),
+                (ImageSize::Medium, "medium"),
+                (ImageSize::Large, "large"),
+                (ImageSize::Original, "original"),
+            ].into_iter()
+                .map(|(size, s)| (size, s.as_bytes().to_vec()))
+                .collect::<HashMap<_, _>>();
             Box::new(future::ok(result))
         }
     }
@@ -194,13 +196,15 @@ mod tests {
         let s3 = S3::new(Region::UsEast1, "test-bucket", Box::new(client), Box::new(random), |cpu_pool| {
             Box::new(ImageMock::new(cpu_pool))
         });
-        let expected_uploads = hashmap! {
-            "img-somehash-thumb.png".to_string() => b"thumb".to_vec(),
-            "img-somehash-small.png".to_string() => b"small".to_vec(),
-            "img-somehash-medium.png".to_string() => b"medium".to_vec(),
-            "img-somehash-large.png".to_string() => b"large".to_vec(),
-            "img-somehash.png".to_string() => b"original".to_vec(),
-        };
+        let expected_uploads = vec![
+            ("img-somehash-thumb.png", "thumb"),
+            ("img-somehash-small.png", "small"),
+            ("img-somehash-medium.png", "medium"),
+            ("img-somehash-large.png", "large"),
+            ("img-somehash.png", "original"),
+        ].into_iter()
+            .map(|(file, size)| (file.to_string(), size.as_bytes().to_vec()))
+            .collect::<HashMap<_, _>>();
 
         let url = s3.upload_image(ImageFormat::PNG, b"".to_vec()).wait().unwrap();
         assert_eq!(url, "https://s3.us-east-1.amazonaws.com/test-bucket/img-somehash.png");
