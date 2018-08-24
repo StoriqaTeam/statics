@@ -61,7 +61,8 @@ impl UploadTester {
         body.extend(b"\r\n\r\n".into_iter());
         body.extend(original_bytes);
         body.extend(b"\r\n-----------------------------2132006148186267924133397521--\r\n".into_iter());
-        let boundary = self.boundary
+        let boundary = self
+            .boundary
             .unwrap_or("---------------------------2132006148186267924133397521".to_string());
         let mime = format!("multipart/form-data; boundary={}", &boundary)
             .parse::<mime::Mime>()
