@@ -55,7 +55,6 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::process;
 use std::sync::Arc;
-use stq_http::client::Config as HttpConfig;
 use stq_http::controller::Application;
 use tokio_core::reactor::Core;
 
@@ -76,11 +75,7 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<u16>, ca
     let mut jwt_public_key: Vec<u8> = Vec::new();
     f.read_to_end(&mut jwt_public_key).unwrap();
 
-    let http_config = HttpConfig {
-        http_client_retries: config.client.http_client_retries,
-        http_client_buffer_size: config.client.http_client_buffer_size,
-        timeout_duration_ms: config.client.timeout_duration_ms,
-    };
+    let http_config = config.to_http_config();
     let client = stq_http::client::Client::new(&http_config, &handle);
     let client_handle = client.handle();
     let client_stream = client.stream();
