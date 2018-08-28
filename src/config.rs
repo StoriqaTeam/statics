@@ -2,6 +2,7 @@
 
 use config_crate::{Config as RawConfig, ConfigError, Environment, File};
 use std::env;
+use stq_http;
 use stq_logging;
 
 /// Global app config
@@ -49,8 +50,7 @@ pub struct JWT {
 pub struct Client {
     pub http_client_retries: usize,
     pub http_client_buffer_size: usize,
-    pub dns_worker_thread_count: usize,
-    pub timeout_duration_ms: u64,
+    pub http_timeout_ms: u64,
 }
 
 /// Creates new app config struct. The order is take `base.toml`, then override with
@@ -74,5 +74,13 @@ impl Config {
         s.merge(Environment::with_prefix("STQ_STATICS"))?;
 
         s.try_into()
+    }
+
+    pub fn to_http_config(&self) -> stq_http::client::Config {
+        stq_http::client::Config {
+            http_client_buffer_size: self.client.http_client_buffer_size,
+            http_client_retries: self.client.http_client_retries,
+            timeout_duration_ms: self.client.http_timeout_ms,
+        }
     }
 }
