@@ -4,12 +4,11 @@ use futures::future;
 use futures::future::Future;
 use futures_cpupool::CpuPool;
 use image;
-use image::{DynamicImage, FilterType, GenericImage};
+use image::{DynamicImage, FilterType, GenericImage, ImageFormat};
 use std::collections::HashMap;
 
 use super::error::S3Error;
 use super::types::ImageSize;
-use services::types::ImageFormat;
 
 pub trait Image {
     /// Process image specified by format and bytes encoded in this format
@@ -69,9 +68,9 @@ impl<'a> ImageImpl<'a> {
 
 impl<'a> Image for ImageImpl<'a> {
     fn process(&self, format: ImageFormat, bytes: Vec<u8>) -> Box<Future<Item = HashMap<ImageSize, Vec<u8>>, Error = S3Error>> {
-        let image = match image::load_from_memory_with_format(&bytes, format.into()) {
+        let image = match image::load_from_memory_with_format(&bytes, format) {
             Ok(data) => data,
-            Err(e) => return S3Error::Image(format!("Error parsing image with format {}: {}", format, e)).into(),
+            Err(e) => return S3Error::Image(format!("Error parsing image with format {:?}: {}", format, e)).into(),
         };
         let mut futures: Vec<Box<Future<Item = (ImageSize, Vec<u8>), Error = S3Error>>> =
             [ImageSize::Thumb, ImageSize::Small, ImageSize::Medium, ImageSize::Large]
@@ -125,7 +124,7 @@ mod test {
 
         let cpu_pool = CpuPool::new_num_cpus();
         let image = ImageImpl::new(&cpu_pool);
-        let image_hash = image.process(ImageFormat::JPG, original_image_bytes).wait().unwrap();
+        let image_hash = image.process(ImageFormat::JPEG, original_image_bytes).wait().unwrap();
 
         assert_eq!(image_hash[&ImageSize::Thumb], thumb_image_bytes);
         assert_eq!(image_hash[&ImageSize::Small], small_image_bytes);

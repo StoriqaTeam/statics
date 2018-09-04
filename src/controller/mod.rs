@@ -7,6 +7,9 @@ pub mod multipart_utils;
 pub mod routes;
 pub mod utils;
 
+use std::io::Read;
+use std::sync::Arc;
+
 use failure;
 use failure::Fail;
 use futures::future;
@@ -16,11 +19,9 @@ use hyper::header::{Authorization, Bearer};
 use hyper::server::Request;
 use hyper::Headers;
 use hyper::Post;
+use image;
 use jsonwebtoken::{decode, Algorithm, Validation};
 use multipart::server::Multipart;
-use std::io::Read;
-use std::str::FromStr;
-use std::sync::Arc;
 
 use stq_http::client::ClientHandle;
 use stq_http::controller::{Controller, ControllerFuture};
@@ -31,7 +32,6 @@ use self::routes::Route;
 use config::Config;
 use errors::*;
 use services::s3::S3;
-use services::types::ImageFormat;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct JWTPayload {
@@ -121,23 +121,15 @@ impl Controller for ControllerImpl {
                             .context(Error::Parse)
                             .into()),
                     })
-                    .and_then(|field| {
-                        let format = field
-                            .headers
-                            .content_type
-                            .ok_or(
-                                format_err!("Parsed and read entry, but couldn't read content-type")
-                                    .context(Error::Parse)
-                                    .into(),
-                            )
-                            .and_then(|ct| ImageFormat::from_str(ct.subtype().as_str()))?;
-
-                        Ok((field.data, format))
-                    })
-                    .and_then(move |(mut field_data, format)| {
+                    .and_then(|mut field| {
                         let mut data: Vec<u8> = Vec::new();
-                        let _ = field_data.read_to_end(&mut data);
-
+                        let _ = field.data.read_to_end(&mut data);
+                        image::guess_format(&data)
+                            .map_err(|e| e.context("Invalid image format").context(Error::Image).into())
+                            .map(|format| (format, data))
+                            .into_future()
+                    })
+                    .and_then(move |(format, data)| {
                         Box::new(
                             s3.upload_image(format, data)
                                 .map(|name| json!({ "url": name }))
