@@ -10,10 +10,10 @@ pub mod types;
 use futures::future;
 use futures::future::Future;
 use futures_cpupool::CpuPool;
+use image::ImageFormat;
 use rusoto_core::region::Region;
 use rusoto_core::request::{HttpClient, TlsError};
 use rusoto_s3::S3Client as CrateS3Client;
-use services::types::ImageFormat;
 use std::rc::Rc;
 use tokio_core::reactor::Handle;
 
