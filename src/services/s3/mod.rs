@@ -163,8 +163,8 @@ mod tests {
                 (ImageSize::Large, "large"),
                 (ImageSize::Original, "original"),
             ].into_iter()
-                .map(|(size, s)| (size, s.as_bytes().to_vec()))
-                .collect::<HashMap<_, _>>();
+            .map(|(size, s)| (size, s.as_bytes().to_vec()))
+            .collect::<HashMap<_, _>>();
             Box::new(future::ok(result))
         }
     }
@@ -203,8 +203,8 @@ mod tests {
             ("img-somehash-large.png", "large"),
             ("img-somehash.png", "original"),
         ].into_iter()
-            .map(|(file, size)| (file.to_string(), size.as_bytes().to_vec()))
-            .collect::<HashMap<_, _>>();
+        .map(|(file, size)| (file.to_string(), size.as_bytes().to_vec()))
+        .collect::<HashMap<_, _>>();
 
         let url = s3.upload_image(ImageFormat::PNG, b"".to_vec()).wait().unwrap();
         assert_eq!(url, "https://s3.us-east-1.amazonaws.com/test-bucket/img-somehash.png");

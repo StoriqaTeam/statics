@@ -5,6 +5,8 @@ use std::env;
 use stq_http;
 use stq_logging;
 
+use sentry_integration::SentryConfig;
+
 /// Global app config
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
@@ -14,6 +16,7 @@ pub struct Config {
     pub jwt: JWT,
     /// GrayLog settings
     pub graylog: Option<stq_logging::GrayLogConfig>,
+    pub sentry: Option<SentryConfig>,
 }
 
 fn default_acao() -> String {

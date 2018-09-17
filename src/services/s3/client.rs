@@ -2,7 +2,7 @@
 
 use futures::prelude::*;
 use rusoto_core::request::HttpClient;
-use rusoto_s3::{PutObjectRequest, S3, S3Client as CrateS3Client};
+use rusoto_s3::{PutObjectRequest, S3Client as CrateS3Client, S3};
 
 use super::credentials::Credentials;
 use super::error::S3Error;

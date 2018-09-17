@@ -80,8 +80,7 @@ impl<'a> Image for ImageImpl<'a> {
                     let size_clone = size.clone();
                     Box::new(self.resize_image_async(size, img).map(|bytes| (size_clone, bytes)))
                         as Box<Future<Item = (ImageSize, Vec<u8>), Error = S3Error>>
-                })
-                .collect();
+                }).collect();
         futures.push(Box::new(future::ok((ImageSize::Original, bytes))));
         Box::new(future::join_all(futures).map(|results| results.into_iter().collect::<HashMap<_, _>>()))
     }

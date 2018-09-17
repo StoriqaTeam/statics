@@ -40,10 +40,13 @@ extern crate stq_http;
 extern crate stq_logging;
 extern crate stq_router;
 extern crate tokio_core;
+#[macro_use]
+extern crate sentry;
 
 mod config;
 pub mod controller;
 pub mod errors;
+pub mod sentry_integration;
 pub mod services;
 
 use futures::future;
@@ -101,8 +104,7 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<u16>, ca
             });
 
             Ok(app)
-        })
-        .unwrap_or_else(|why| {
+        }).unwrap_or_else(|why| {
             error!("Http Server Initialization Error: {}", why);
             process::exit(1);
         });
@@ -113,8 +115,7 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<u16>, ca
             .for_each(move |conn| {
                 handle.spawn(conn.map(|_| ()).map_err(|why| error!("Server Error: {:?}", why)));
                 Ok(())
-            })
-            .map_err(|_| ())
+            }).map_err(|_| ())
     });
 
     info!("Listening on http://{}", address);
