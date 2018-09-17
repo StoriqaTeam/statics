@@ -96,8 +96,7 @@ impl UploadTester {
                     fetch_image_from_s3_and_file(&client, original_filename, &url, size).map(|(local, remote)| {
                         assert_eq!(local, remote);
                     })
-                })
-                .collect();
+                }).collect();
             core.run(future::join_all(futures)).unwrap();
         }
     }
