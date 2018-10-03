@@ -34,7 +34,7 @@ stq_http = { path = "vendor/libstqbackend/http" }
 stq_logging = { path = "vendor/libstqbackend/logging" }
 stq_router = { path = "vendor/libstqbackend/router" }
 tokio-core = "0.1"
-sentry = "0.3"
+sentry = "0.12"
 
 [dev-dependencies]
 hyper-tls = "0.1.3"
