@@ -25,12 +25,14 @@ use multipart::server::Multipart;
 
 use stq_http::client::ClientHandle;
 use stq_http::controller::{Controller, ControllerFuture};
+use stq_http::errors::ErrorMessageWrapper;
 use stq_http::request_util::serialize_future;
 use stq_router::RouteParser;
 
 use self::routes::Route;
 use config::Config;
 use errors::*;
+use sentry_integration::log_and_capture_error;
 use services::s3::S3;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -87,7 +89,7 @@ impl Controller for ControllerImpl {
     fn call(&self, req: Request) -> ControllerFuture {
         let s3 = self.s3.clone();
 
-        let result: ControllerFuture = match (req.method(), self.route_parser.test(req.path())) {
+        let fut = match (req.method(), self.route_parser.test(req.path())) {
             // POST /images
             (&Post, Some(Route::Images)) => serialize_future({
                 let method = req.method().clone();
@@ -134,8 +136,15 @@ impl Controller for ControllerImpl {
 
             // Fallback
             _ => serialize_future::<String, _, _>(Err(Error::NotFound)),
-        };
-        result
+        }.map_err(|err| {
+            let wrapper = ErrorMessageWrapper::<Error>::from(&err);
+            if wrapper.inner.code == 500 {
+                log_and_capture_error(&err);
+            }
+            err
+        });
+
+        Box::new(fut)
     }
 }
 
