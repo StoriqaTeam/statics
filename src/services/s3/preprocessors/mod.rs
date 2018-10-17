@@ -4,7 +4,8 @@ use futures::future;
 use futures::future::Future;
 use futures_cpupool::CpuPool;
 use image;
-use image::{DynamicImage, FilterType, GenericImage, ImageFormat};
+use image::GenericImageView;
+use image::{DynamicImage, FilterType, ImageFormat};
 use std::collections::HashMap;
 
 use super::error::S3Error;
@@ -57,11 +58,11 @@ impl<'a> ImageImpl<'a> {
         let width = ((w as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
         let height = ((h as f32) * (int_size as f32) / (smallest_dimension as f32)).round() as u32;
         let resized_image = match int_size {
-            x if x < smallest_dimension => image.resize_exact(width, height, FilterType::Triangle),
+            x if x < smallest_dimension => image.resize(width, height, FilterType::Triangle),
             _ => image,
         };
         let mut buffer = Vec::new();
-        let _ = resized_image.save(&mut buffer, ImageFormat::PNG.into());
+        let _ = resized_image.write_to(&mut buffer, ImageFormat::PNG);
         Ok(buffer)
     }
 }
