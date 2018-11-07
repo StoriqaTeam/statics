@@ -95,7 +95,7 @@ impl Controller for ControllerImpl {
                 let method = req.method().clone();
                 let headers = req.headers().clone();
 
-                debug!("Received image upload request");
+                info!("Received image upload request");
 
                 future::ok(())
                     .and_then({
@@ -106,7 +106,7 @@ impl Controller for ControllerImpl {
                     }).and_then(|_user_id| {
                         read_bytes(req.body()).map_err(|e| e.context("Failed to read request body").context(Error::Network).into())
                     }).and_then(move |bytes| {
-                        debug!("Read payload bytes");
+                        info!("Read payload bytes");
                         let multipart_wrapper = multipart_utils::MultipartRequest::new(method, headers, bytes);
                         Multipart::from_request(multipart_wrapper).map_err(|_| {
                             format_err!("Couldn't convert request body to multipart")

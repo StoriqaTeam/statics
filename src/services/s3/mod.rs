@@ -84,7 +84,7 @@ impl S3 {
     /// than e.g. ImageSize::Large, then original image is uploaded instead of large.
     ///
     /// * `format` - now only "png" or "jpg" are supported
-    /// * `bytes` - bytes repesenting compessed image (compessed with `image_type` codec)
+    /// * `bytes` - bytes representing compressed image (compressed with `image_type` codec)
     ///
     /// #Errors
     /// * `S3Error::Image` if encoding is incorrect, incl zero dimensions
@@ -107,7 +107,7 @@ impl S3 {
     /// * `random_hash` - technically a filename for image
     /// * `size` - image size for deriving a name tag, like `dsf-small.png`
     /// * `image_type` - either "png", "jpg" or "jpeg" - these are types that are supported
-    /// * `bytes` - bytes repesenting compessed image (compessed with `image_type` codec)
+    /// * `bytes` - bytes representing compressed image (compressed with `image_type` codec)
     fn upload_image_with_size(&self, random_hash: &str, size: &ImageSize, bytes: Vec<u8>) -> Box<Future<Item = (), Error = S3Error>> {
         let name = Self::create_aws_name("img", "png", size, random_hash);
         self.inner.upload(self.bucket.clone(), name, Some("image/png".to_string()), bytes)
