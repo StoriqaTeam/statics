@@ -40,6 +40,7 @@ extern crate stq_http;
 extern crate stq_logging;
 extern crate stq_router;
 extern crate tokio_core;
+extern crate tokio_signal;
 #[macro_use]
 extern crate sentry;
 
@@ -123,5 +124,9 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<u16>, ca
         callback();
         future::ok(())
     });
-    core.run(future::empty::<(), ()>()).unwrap();
+
+    core.run(tokio_signal::ctrl_c().flatten_stream().take(1u64).for_each(|()| {
+        info!("Ctrl+C received. Exit");
+        Ok(())
+    })).unwrap();
 }
