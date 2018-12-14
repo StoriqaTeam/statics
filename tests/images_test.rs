@@ -103,6 +103,7 @@ impl UploadTester {
     }
 }
 
+#[ignore]
 #[test]
 fn test_services() {
     let base_url = common::setup();
