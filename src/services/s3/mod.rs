@@ -162,7 +162,8 @@ mod tests {
                 (ImageSize::Medium, "medium"),
                 (ImageSize::Large, "large"),
                 (ImageSize::Original, "original"),
-            ].into_iter()
+            ]
+            .into_iter()
             .map(|(size, s)| (size, s.as_bytes().to_vec()))
             .collect::<HashMap<_, _>>();
             Box::new(future::ok(result))
@@ -202,7 +203,8 @@ mod tests {
             ("img-somehash-medium.png", "medium"),
             ("img-somehash-large.png", "large"),
             ("img-somehash.png", "original"),
-        ].into_iter()
+        ]
+        .into_iter()
         .map(|(file, size)| (file.to_string(), size.as_bytes().to_vec()))
         .collect::<HashMap<_, _>>();
 

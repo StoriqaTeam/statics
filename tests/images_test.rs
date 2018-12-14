@@ -96,7 +96,8 @@ impl UploadTester {
                     fetch_image_from_s3_and_file(&client, original_filename, &url, size).map(|(local, remote)| {
                         assert_eq!(local, remote);
                     })
-                }).collect();
+                })
+                .collect();
             core.run(future::join_all(futures)).unwrap();
         }
     }
@@ -119,21 +120,24 @@ fn test_services() {
         jwt_token: Some("hello".into()),
         response_status: Some(StatusCode::BadRequest),
         ..Default::default()
-    }.test(&base_url, &mut core, &client);
+    }
+    .test(&base_url, &mut core, &client);
 
     println!("Testing invalid boundary");
     UploadTester {
         boundary: Some("abeceda".into()),
         response_status: Some(StatusCode::UnprocessableEntity),
         ..Default::default()
-    }.test(&base_url, &mut core, &client);
+    }
+    .test(&base_url, &mut core, &client);
 
     println!("Testing invalid content type");
     UploadTester {
         content_type: Some("image/svg".into()),
         response_status: Some(StatusCode::UnprocessableEntity),
         ..Default::default()
-    }.test(&base_url, &mut core, &client);
+    }
+    .test(&base_url, &mut core, &client);
 }
 
 fn fetch_image_from_s3_and_file(
