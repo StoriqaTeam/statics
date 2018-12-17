@@ -105,7 +105,8 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<u16>, ca
             });
 
             Ok(app)
-        }).unwrap_or_else(|why| {
+        })
+        .unwrap_or_else(|why| {
             error!("Http Server Initialization Error: {}", why);
             process::exit(1);
         });
@@ -116,7 +117,8 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<u16>, ca
             .for_each(move |conn| {
                 handle.spawn(conn.map(|_| ()).map_err(|why| error!("Server Error: {:?}", why)));
                 Ok(())
-            }).map_err(|_| ())
+            })
+            .map_err(|_| ())
     });
 
     info!("Listening on http://{}", address);
@@ -128,5 +130,6 @@ pub fn start_server<F: FnOnce() + 'static>(config: Config, port: Option<u16>, ca
     core.run(tokio_signal::ctrl_c().flatten_stream().take(1u64).for_each(|()| {
         info!("Ctrl+C received. Exit");
         Ok(())
-    })).unwrap();
+    }))
+    .unwrap();
 }

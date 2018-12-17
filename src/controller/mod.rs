@@ -48,7 +48,8 @@ pub fn verify_token(jwt_key: Vec<u8>, leeway: i64, headers: &Headers) -> Box<Fut
                 .get::<Authorization<Bearer>>()
                 .map(|auth| auth.clone())
                 .ok_or_else(|| format_err!("Missing token").context(Error::Unauthorized).into()),
-        ).and_then(move |auth| {
+        )
+        .and_then(move |auth| {
             let token = auth.0.token.as_ref();
 
             let validation = Validation {
@@ -57,7 +58,8 @@ pub fn verify_token(jwt_key: Vec<u8>, leeway: i64, headers: &Headers) -> Box<Fut
             };
             decode::<JWTPayload>(token, &jwt_key, &validation)
                 .map_err(|e| format_err!("Failed to parse JWT token: {}", e).context(Error::Unauthorized).into())
-        }).map(|t| t.claims),
+        })
+        .map(|t| t.claims),
     )
 }
 
@@ -103,9 +105,11 @@ impl Controller for ControllerImpl {
                         let leeway = self.config.jwt.leeway;
                         let jwt_key = self.jwt_public_key.clone();
                         move |_| verify_token(jwt_key, leeway, &headers)
-                    }).and_then(|_user_id| {
+                    })
+                    .and_then(|_user_id| {
                         read_bytes(req.body()).map_err(|e| e.context("Failed to read request body").context(Error::Network).into())
-                    }).and_then(move |bytes| {
+                    })
+                    .and_then(move |bytes| {
                         info!("Read payload bytes");
                         let multipart_wrapper = multipart_utils::MultipartRequest::new(method, headers, bytes);
                         Multipart::from_request(multipart_wrapper).map_err(|_| {
@@ -113,19 +117,22 @@ impl Controller for ControllerImpl {
                                 .context(Error::Parse)
                                 .into()
                         })
-                    }).and_then(|multipart_entity| match multipart_entity.into_entry().into_result() {
+                    })
+                    .and_then(|multipart_entity| match multipart_entity.into_entry().into_result() {
                         Ok(Some(field)) => Ok(field),
                         _ => Err(format_err!("Parsed multipart, but couldn't read the next entry")
                             .context(Error::Parse)
                             .into()),
-                    }).and_then(|mut field| {
+                    })
+                    .and_then(|mut field| {
                         let mut data: Vec<u8> = Vec::new();
                         let _ = field.data.read_to_end(&mut data);
                         image::guess_format(&data)
                             .map_err(|e| e.context("Invalid image format").context(Error::Image).into())
                             .map(|format| (format, data))
                             .into_future()
-                    }).and_then(move |(format, data)| {
+                    })
+                    .and_then(move |(format, data)| {
                         Box::new(
                             s3.upload_image(format, data)
                                 .map(|name| json!({ "url": name }))
@@ -136,7 +143,8 @@ impl Controller for ControllerImpl {
 
             // Fallback
             _ => serialize_future::<String, _, _>(Err(Error::NotFound)),
-        }.map_err(|err| {
+        }
+        .map_err(|err| {
             let wrapper = ErrorMessageWrapper::<Error>::from(&err);
             if wrapper.inner.code == 500 {
                 log_and_capture_error(&err);
