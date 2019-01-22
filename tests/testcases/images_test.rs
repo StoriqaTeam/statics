@@ -1,20 +1,3 @@
-extern crate chrono;
-extern crate futures;
-extern crate futures_timer;
-extern crate hyper;
-extern crate hyper_tls;
-extern crate jsonwebtoken;
-extern crate mime;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-extern crate statics_lib as lib;
-extern crate stq_http;
-extern crate tokio_core;
-
-pub mod common;
-
 use futures::future;
 use futures::future::Future;
 use futures::Stream;
@@ -49,7 +32,7 @@ struct UploadTester {
 impl UploadTester {
     fn test(self, base_url: &str, core: &mut Core, client: &HttpClient) {
         let original_filename = &self.original_filename.unwrap_or("image-328x228.png".to_string());
-        let original_bytes = common::read_static_file(original_filename);
+        let original_bytes = super::common::read_static_file(original_filename);
         let mut body = Vec::new();
         body.extend(
             b"-----------------------------2132006148186267924133397521\r\nContent-Disposition: form-data; name=\"file\"; filename=\""
@@ -106,7 +89,7 @@ impl UploadTester {
 #[ignore]
 #[test]
 fn test_services() {
-    let base_url = common::setup();
+    let base_url = super::common::setup();
 
     let mut core = Core::new().expect("Unexpected error creating event loop core");
     let client = ::hyper::Client::configure()
@@ -151,7 +134,7 @@ fn fetch_image_from_s3_and_file(
     let url = add_size_to_url(url, size);
     let uri = Uri::from_str(&url).unwrap();
     Box::new(client.get(uri).and_then(|resp| read_bytes(resp.body())).map(move |remote_bytes| {
-        let local_bytes = common::read_static_file(&filename);
+        let local_bytes = super::common::read_static_file(&filename);
         (remote_bytes, local_bytes)
     }))
 }
