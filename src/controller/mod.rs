@@ -118,18 +118,23 @@ impl Controller for ControllerImpl {
                                 .into()
                         })
                     })
-                    .and_then(|multipart_entity| match multipart_entity.into_entry().into_result() {
-                        Ok(Some(field)) => Ok(field),
-                        _ => Err(format_err!("Parsed multipart, but couldn't read the next entry")
-                            .context(Error::Parse)
-                            .into()),
+                    .and_then(|mut multipart_entity| {
+                        let mut files: Vec<Vec<u8>> = Vec::new();
+                        multipart_entity
+                            .foreach_entry(|mut field| {
+                                let mut file_data: Vec<u8> = Vec::new();
+                                let _ = field.data.read_to_end(&mut file_data);
+                                files.push(file_data);
+                            })
+                            .map_err(|e| format_err!("Parsed multipart, could not iterate over entries: {}", e).context(Error::Parse))?;
+                        Ok(files)
                     })
-                    .and_then(|mut field| {
-                        let mut data: Vec<u8> = Vec::new();
-                        let _ = field.data.read_to_end(&mut data);
-                        image::guess_format(&data)
+                    .map(futures::stream::iter_ok)
+                    .flatten_stream()
+                    .and_then(|file| {
+                        image::guess_format(&file)
                             .map_err(|e| e.context("Invalid image format").context(Error::Image).into())
-                            .map(|format| (format, data))
+                            .map(|format| (format, file))
                             .into_future()
                     })
                     .and_then(move |(format, data)| {
@@ -138,6 +143,18 @@ impl Controller for ControllerImpl {
                                 .map(|name| json!({ "url": name }))
                                 .map_err(|e| e.context(Error::Image).into()),
                         )
+                    })
+                    .collect()
+                    .and_then(|uploaded_images| {
+                        if uploaded_images.len() == 1 {
+                            uploaded_images.into_iter().next().ok_or(format_err!("No images were sent"))
+                        } else {
+                            serde_json::to_value(&uploaded_images).map_err(|e| {
+                                format_err!("Uploaded images, could not serialize result: {}", e)
+                                    .context(Error::Parse)
+                                    .into()
+                            })
+                        }
                     })
             }),
 
